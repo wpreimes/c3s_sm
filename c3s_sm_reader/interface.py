@@ -36,53 +36,63 @@ from dateutil.relativedelta import relativedelta
 from pygeobase.object_base import Image
 from pygeobase.io_base import ImageBase
 from pygeobase.io_base import MultiTemporalImageBase
+from pygeogrids.netcdf import load_grid
 
 from smecv_grid.grid import SMECV_Grid_v042
 from netCDF4 import Dataset, num2date
-from smecv_grid.grid import SMECV_Grid_v042 as esa_cci_sm_grid_v04_2 # todo replace this with the c3s grid package
-from pynetcf.time_series import OrthoMultiTs
+from pynetcf.time_series import GriddedNcOrthoMultiTs
 from pynetcf.time_series import IndexedRaggedTs, GriddedNcTs
 from pygeogrids.grids import CellGrid
 from datetime import datetime
 from datetime import time as dt_time
 from collections import Iterable
+from grid import C3SCellGrid
+from parse import parse
 
-# FIXME: dynamic class name: Dataset_TempRes_Name_Product_Version#
-'''
-# Class name determines product it is applicable to. Should be of format:
-		{product}_{fileformat}_{product_time_period}_{product_sub_type}
-	where product is the product that it is applicable, i.e. cci, fileformat is the type of file that are being read,
-	for example, netcdf, product_time_period is the period of the product, for example "daily" or "monthly" and
-	product_sub_type is an optional addition to cover where other subdivisions of the product are used, for example,
-	ICDR or TCDR.
-'''
+def c3s_filename_template(name='default'):
+    # this function can be used in case the filename changes at some point.
+    if name == 'default':
+        return '{product}-SOILMOISTURE-L3S-{data_type}-{sensor_type}-{temp_res}-{datetime}000000-{subprod}-{version}.0.0.nc'
 
 
-# TCDR timeseries readers-----------------------------------------------------------------------------------------------
-class C33Ts(GriddedNcTs):
+class C3STs(GriddedNcOrthoMultiTs):
     """
     Module for reading C3S time series in netcdf format.
     """
 
-    def __init__(self, path, mode='r', grid=None,
-                 fn_format='{:04d}', remove_nans=True):
-
+    def __init__(self, ts_path, grid_path=None, remove_nans=False):
+        '''
+        Parameters
+        ----------
+        ts_path : str
+            Path to the netcdf time series files
+        grid_path : str, optional (default: None)
+            Path to the netcdf grid file.
+            If None is passed, grid.nc is searched in ts_path.
+        remove_nans : bool, optional (default: False)
+            Replace -9999 with np.nan in time series
+        '''
         self.remove_nans = remove_nans
 
-        if grid is None:
-            grid = esa_cci_sm_grid_v04_2()  # todo replace this with the c3s grid package
+        if grid_path is None:
+            grid_path = os.path.join(ts_path, "grid.nc")
 
-        super(C33Ts, self).__init__(path, grid=grid,
-                                    ioclass=OrthoMultiTs,
+        grid = load_grid(grid_path)
+
+        super(C3STs, self).__init__(ts_path, grid=grid)
+        '''
+        super(C3STs, self).__init__(ts_path, grid=grid,
+                                    ioclass=GriddedNcOrthoMultiTs,
                                     ioclass_kws={'read_bulk': True},
-                                    mode=mode,
-                                    fn_format=fn_format)
+                                    mode='r',
+                                    fn_format='{:04d}')
+        '''
 
     def _read_gp(self, gpi, **kwargs):
         """Read a single point from passed gpi or from passed lon, lat """
         # override the _read_gp function from parent class, to add dropna functionality
 
-        ts = super(C33Ts, self)._read_gp(gpi, **kwargs)
+        ts = super(C3STs, self)._read_gp(gpi, **kwargs)
         if ts is None:
             return None
 
@@ -93,9 +103,10 @@ class C33Ts(GriddedNcTs):
 
         return ts
 
+
     def read_cell(self, cell, var=None):
         """
-        Read all time series for the selected cell
+        Read all time series for the selected cell.
 
         Parameters
         -------
@@ -122,54 +133,25 @@ class C33Ts(GriddedNcTs):
                 data = data.replace(-9999.0000, np.nan)
             return data
 
-    def write_gp(self, gp, data, **kwargs):
-        # todo this should keep the global attributes of the image files
-        """
-        Method writing data for given gpi.
-
-        Parameters
-        ----------
-        gp : int
-            Grid point.
-        data : pandas.DataFrame
-            Time series data to write. Index has to be pandas.DateTimeIndex.
-        """
-
-        if 'time' in data.keys():
-            data = data.drop('time', axis=1)
-        data.index = data.index.tz_localize(None)  # todo do we need this?
-        if self.mode == 'r':
-            raise IOError("trying to write but file is in 'read' mode")
-
-        self._open(gp)
-        lon, lat = self.grid.gpi2lonlat(gp)
-        ds = data.to_dict('list')
-        for key in ds:
-            ds[key] = np.array(ds[key])
-
-        self.fid.write_ts(gp, ds, data.index.to_pydatetime(),
-                          lon=lon, lat=lat, **kwargs)
-
 
 class C3SImg(ImageBase):
     """
     Module for a single C3S image (for one time stamp)
     """
 
-    def __init__(self, filename, mode='r', parameters='sm', array_1D=False):
+    def __init__(self, filename, parameters='sm', mode='r', subgrid=None,
+                 array_1D=False):
         '''
         Parameters
         ----------
         filename : str
             Path to the file to read
-        mode : str, optional (default: 'r')
-            # FIXME: if this class is for reading only, we can remove this option?
-            Mode, in which the file is opened
         parameters : str or Iterable, optional (default: 'sm')
             Names of parameters in the file to read.
             If None are passed, all are read.
         array_1D : bool, optional (default: False)
             Read image as one dimensional array, instead of a 2D array
+            Use this when using a subgrid.
         '''
 
         super(C3SImg, self).__init__(filename, mode=mode)
@@ -178,18 +160,17 @@ class C3SImg(ImageBase):
             parameters = [parameters]
 
         self.parameters = parameters
-        self.grid = SMECV_Grid_v042(subset_flag=None)  # todo: give the option to use the rainforest-masked grid?
+        self.grid = C3SCellGrid(subset=None) if not subgrid else subgrid
         self.array_1D = array_1D
 
     def read(self, timestamp=None):
         """
         Reads a single C3S image.
-        # FIXME: reading the metadata could be separated, or there could be an option to (de)activate it...
 
         Parameters
         -------
         timestamp: datetime
-            # todo: we dont need this, because there is only 1 date per file
+            Timestamp file file to read.
 
         Returns
         -------
@@ -200,9 +181,7 @@ class C3SImg(ImageBase):
         ds = Dataset(self.filename, mode='r')
 
         param_img = {}
-        img_meta = {}
-
-        file_meta = {} #FIXME: Include this as well?
+        img_meta = {'global': {}}
 
         if self.parameters[0] is None:
             parameters = ds.variables.keys()
@@ -210,6 +189,7 @@ class C3SImg(ImageBase):
             parameters = self.parameters
 
         for param in parameters:
+            if param in ['lat', 'lon', 'time']: continue
             param_metadata = {}
 
             variable = ds.variables[param]
@@ -218,12 +198,12 @@ class C3SImg(ImageBase):
                 param_metadata.update({str(attr): getattr(variable, attr)})
 
             #there is always only day per file?
-            param_img[param] = variable[0][:].flatten().filled() # fixme: fill nans -9999 or smt else?
-
+            param_img[param] = variable[0][:].flatten().filled()
             img_meta[param] = param_metadata
 
+        # add global attributes
         for attr in ds.ncattrs():
-            file_meta[attr] = ds.getncattr(attr)
+            img_meta['global'][attr] = ds.getncattr(attr)
 
         ds.close()
 
@@ -232,7 +212,7 @@ class C3SImg(ImageBase):
                          param_img, img_meta, timestamp)
         else:
             for key in param_img:
-                param_img[key] = param_img[key].reshape(720, 1440) # fixme, the resolution is always the same, grid is aways the global one?
+                param_img[key] = param_img[key].reshape(720, 1440)
 
             return Image(self.grid.activearrlon.reshape(720, 1440),
                          self.grid.activearrlat.reshape(720, 1440),
@@ -253,63 +233,68 @@ class C3SImg(ImageBase):
 
 
 class C3S_Nc_Img_Stack(MultiTemporalImageBase):
-    # todo i think we need a separate one for monthly, dekdal and daily, but you may be able to change this
-    '''#todo update documentation
-    Class for reading lots of files based on dates.
-    Class name determines product it is applicable to. Should be of format:
-    {product}_{fileformat}_{product_time_period}_{product_sub_type}_images
-    where product is the product that it is applicable, i.e. cci, fileformat is the type of file that are being read,
-    for example, netcdf, product_time_period is the period of the product, for example "daily" or "monthly" and
-    product_sub_type is an optional addition to cover where other subdivisions of the product are used, for example,
-    ICDR or TCDR.
 
-    #TODO - need to make this so coverts from the file of the input images to the generic template
-    #todo write a check to make sure the file is the expected file type (i.e. check on version num or something like that)
-    '''
-
-
-
-    def __init__(self, data_path, parameters=['sm'], product='C3S', product_sensor_type='combined',
-                 temp_res='D', product_sub_type='TCDR', version='v201801',sub_path = ['%Y'],
+    def __init__(self, data_path, parameters='sm', sub_path=['%Y'],
                  subgrid=None, array_1D=False):
-        # FIXME: WHy all the paramters? We can just read them from the path that was passed?
-        #FIXME what is produc
-        # FIXME: is the subgrid needed?
+        '''
+        Parameters
+        ----------
+        data_path : str
+            Path to directory where C3S images are stored
+        parameters : list or str,  optional (default: 'sm')
+            Variables to read from the image files.
+        sub_path : list or None, optional (default: ['%Y'])
+            List of subdirectories in the data path
+        subgrid : grid, optional (default: None)
+            Subset of the image to read
+        array_1D : bool, optional (default: False)
+            Flatten the read image to a 1D array instead of a 2D array
+        '''
 
-
+        self.data_path = data_path
         ioclass_kwargs = {'parameters': parameters,
-                          #'subgrid' : subgrid,
+                          'subgrid' : subgrid,
                           'array_1D': array_1D}
 
-        self.product_datatype_str = {'active': 'SSMS',
-                                     'passive': 'SSMV',
-                                     'combined': 'SSMV'}
+        template = c3s_filename_template()
+        self.fname_args = self._parse_filename(template)
+        filename_templ = template.format(**self.fname_args)
 
-        self.temp_res = temp_res
-
-        temp_res_lut = {'D': 'DAILY', 'M': 'MONTHLY', '10D': 'DEKADAL'}
-        fname_cont = [product,
-                      '-SOILMOISTURE-L3S-',
-                      self.product_datatype_str[product_sensor_type],
-                      '-',
-                      product_sensor_type.upper(),
-                      '-',
-                      temp_res_lut[self.temp_res],
-                      '-{datetime}000000-',
-                      product_sub_type,
-                      '-',
-                      version,
-                      '.0.0.nc']
-
-        filename_templ = ''.join(fname_cont)
-
-
-        super(C3S_Nc_Img_Stack, self).__init__(path=data_path, ioclass=C3SImg, mode='r',
+        super(C3S_Nc_Img_Stack, self).__init__(path=data_path, ioclass=C3SImg,
                                                fname_templ=filename_templ ,
                                                datetime_format="%Y%m%d",
                                                subpath_templ=sub_path,
                                                exact_templ=True,
                                                ioclass_kws=ioclass_kwargs)
+
+    def _parse_filename(self, template):
+        '''
+        Search a file in the passed directory and use the filename template to
+        to read settings.
+
+        Parameters
+        -------
+        template : str
+            Template for all files in the passed directory.
+
+        Returns
+        -------
+        parse_result : parse.Result
+            Parsed content of filename string from filename template.
+        '''
+
+        for curr, subdirs, files in os.walk(self.data_path):
+            for f in files:
+                file_args = parse(template, f)
+                if file_args is None:
+                    continue
+                else:
+                    file_args = file_args.named
+                    file_args['datetime'] = '{datetime}'
+                    return file_args
+
+        raise IOError('No file name in passed directory fits to template')
+
 
 
     def tstamps_for_daterange(self, start_date, end_date):
@@ -330,13 +315,11 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
             list of datetime objects of each available image between
             start_date and end_date
         '''
-        # FIXME: work directly with offset input
-
-        if self.temp_res == 'M':
+        if self.fname_args['temp_res'] == 'MONTHLY':
             next = lambda date : date + relativedelta(months=+1)
-        elif self.temp_res == 'D':
+        elif self.fname_args['temp_res'] == 'DAILY':
             next = lambda date : date + relativedelta(days=+1)
-        elif self.temp_res == '10D':
+        elif self.fname_args['temp_res'] == 'DEKADAL':
             next = lambda date : date + relativedelta(days=+10)
         else:
             raise NotImplementedError
@@ -353,14 +336,22 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
 
 
 if __name__ == '__main__':
-    afile = r"C:\Temp\tcdr\active_daily\1991\C3S-SOILMOISTURE-L3S-SSMS-ACTIVE-DAILY-19910805000000-TCDR-v201801.0.0.nc"
-    img = C3SImg(afile, 'r', 'sm', True)
-    image = img.read()
+
+    path = r'C:\Users\wpreimes\AppData\Local\Temp\tmphbaubd'
+    ds = C3STs(path)
+    ts = ds.read(-159.625, 65.875)
 
     afile = r"C:\Temp\tcdr\active_daily"
-    ds = C3S_Nc_Img_Stack(afile, parameters=['sm'], product='C3S', product_sensor_type='active',
-                          temp_res='D', product_sub_type='TCDR', version='v201801',
-                          subgrid=None, array_1D=False)
-    image = ds.read(datetime(1991,8,6))
+    ds = C3S_Nc_Img_Stack(afile, parameters=['sm'], sub_path=['%Y'],
+                 subgrid=None, array_1D=False)
+
+    img = ds.read(timestamp=datetime(1991,8,6))
 
     images = ds.iter_images(start_date=datetime(1991,8,5), end_date=datetime(1991,8,10))
+
+
+
+
+    afile = r"C:\Temp\tcdr\active_daily\1991\C3S-SOILMOISTURE-L3S-SSMS-ACTIVE-DAILY-19910805000000-TCDR-v201801.0.0.nc"
+    img = C3SImg(afile, ['sm', 'sm_uncertainty'], None, True)
+    image = img.read()

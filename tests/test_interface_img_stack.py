@@ -12,8 +12,7 @@ def test_c3s_timestamp_for_daterange():
     path = os.path.join(os.path.dirname(__file__),
                         'test-data', 'img', 'TCDR', '060_dailyImages', 'combined')
 
-    ds = C3S_Nc_Img_Stack(path, parameters, 'C3S', 'combined', 'D', 'TCDR',
-                          'v201801', ['%Y'], None, False)
+    ds = C3S_Nc_Img_Stack(path, parameters)
 
 
     tstamps = ds.tstamps_for_daterange(datetime(2000, 1, 1),
@@ -31,8 +30,7 @@ def test_c3s_img_stack_single_img_reading():
     path = os.path.join(os.path.dirname(__file__),
                         'test-data', 'img', 'TCDR', '060_dailyImages', 'combined')
 
-    ds = C3S_Nc_Img_Stack(path, parameters, 'C3S', 'combined', 'D', 'TCDR',
-                          'v201801', ['%Y'], None, False)
+    ds = C3S_Nc_Img_Stack(path, parameters)
 
     img = ds.read(datetime(2014,1,1)) # type: Image
 
@@ -46,8 +44,7 @@ def test_c3s_img_stack_multiple_img_reading():
     path = os.path.join(os.path.dirname(__file__),
                         'test-data', 'img', 'TCDR', '061_monthlyImages', 'combined')
 
-    ds = C3S_Nc_Img_Stack(path, parameters, 'C3S', 'combined', 'M', 'TCDR',
-                          'v201801', None, None, False)
+    ds = C3S_Nc_Img_Stack(path, parameters, sub_path=None)
 
     images = ds.iter_images(startdate, enddate)
 
@@ -63,6 +60,7 @@ def test_c3s_img_stack_multiple_img_reading():
 
 
 if __name__ == '__main__':
-    test_c3s_timestamp_for_daterange()
     test_c3s_img_stack_multiple_img_reading()
     test_c3s_img_stack_single_img_reading()
+    test_c3s_timestamp_for_daterange()
+
