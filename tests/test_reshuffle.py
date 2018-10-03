@@ -23,7 +23,7 @@ def test_reshuffle():
         main(args)
 
         if land_points == 'True':
-            assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 969
+            assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 1002
         else:
             assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 2593
 
