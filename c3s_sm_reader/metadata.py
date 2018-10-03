@@ -1,21 +1,31 @@
 # -*- coding: utf-8 -*-
 
+import numpy as np
 
+class C3S_SM_TS_Attrs(object):
+    def __init__(self, product_sensor_type, version='v0000', sub_version='.0.0'):
+        # todo: version keyword my be unnecessary
+        '''
+        Parameters
+        ----------
+        product_sensor_type : str
+            Sensor type: active, passive, combined
+        version : str
+            Version name to read attributes for
+        sub_version : str
+            Sub version to read attributes for
+        '''
+        self.version, self.version_sub_string = version, sub_version
 
-# TCDR timeseries attributes --------------------------------------------------------------------------------------------
-class C3S_SM_TS_Attrs():
-    # FIXME: maybe this should be in the file metadata, and we read it directly from the files?
-    # FIXME : maybe store the large dicts in a ini file the classes
-    # FIXME : Should this be automatically generated or read from predefined file
-
-    def __init__(self, version=None):  # todo add documentation
-        # todo current is the base case which and should be called if version is not specified. need to add in functionality
-        # to deal with user specifying verions and where these might change, for example frewqbandID dictionary is different if we add new sensros
         self.product_datatype_str = {'active': 'SSMS',
                                      'passive': 'SSMV',
                                      'combined': 'SSMV'}
 
-    def atts_product_sensor_type(self, product_sensor_type):
+        self.product_sensor_type = product_sensor_type
+
+        self.atts_product_sensor_type(product_sensor_type)
+
+    def atts_product_sensor_type(self, product_sensor_type='active'):
         if product_sensor_type == "active":
             self.sm_units = "percentage (%)"
             self.sm_uncertainty_units = "percentage (%)"
@@ -34,6 +44,8 @@ class C3S_SM_TS_Attrs():
                         3: 'day_night_combination'}
         self.dn_flag_values = np.array(sorted(dn_flag_dict.keys()), dtype=np.byte)
         self.dn_flag_meanings = " ".join([dn_flag_dict[key] for key in self.dn_flag_values])
+
+        return self.dn_flag_values, self.dn_flag_meanings
 
     def flag(self):
         flag_dict = {0: 'no_data_inconsistency_detected',
@@ -57,6 +69,8 @@ class C3S_SM_TS_Attrs():
         self.flag_values = np.array(sorted(flag_dict.keys()), dtype=np.byte)
         self.flag_meanings = " ".join([flag_dict[key] for key in self.flag_values])
 
+        return self.flag_values, self.flag_meanings
+
     def freqbandID_flag(self):
         freqbandID_flag_dict = {0: 'NaN',
                                 2: 'C53',
@@ -79,6 +93,8 @@ class C3S_SM_TS_Attrs():
                                 130: 'C53+K194'}
         self.freqbandID_flag_values = np.array(sorted(freqbandID_flag_dict.keys()), dtype=np.int)
         self.freqbandID_flag_meanings = " ".join([freqbandID_flag_dict[key] for key in self.freqbandID_flag_values])
+
+        return self.freqbandID_flag_values, self.freqbandID_flag_meanings
 
     def sensor_flag(self):
         sensor_flag_dict = {0: 'NaN',
@@ -111,6 +127,8 @@ class C3S_SM_TS_Attrs():
         self.sensor_flag_values = np.array(sorted(sensor_flag_dict.keys()), dtype=np.int)
         self.sensor_flag_meanings = " ".join([sensor_flag_dict[key] for key in self.sensor_flag_values])
 
+        return self.sensor_flag_values, self.sensor_flag_meanings
+
     def mode_flag(self):
         mode_flag_dict = {0: 'nan',
                           1: 'ascending',
@@ -119,96 +137,169 @@ class C3S_SM_TS_Attrs():
         self.mode_flag_values = np.array(sorted(mode_flag_dict.keys()), dtype=np.int)
         self.mode_flag_meanings = " ".join([mode_flag_dict[key] for key in self.mode_flag_values])
 
+        return self.mode_flag_meanings, self.mode_flag_values
 
-class c3s_v201706_daily_tcdr_active_tsatt_nc(object):
-    # todo somehow incorporate this with the attributes above. for exmaple does this if active product, this if dekadal, etc.
-    '''	Attributes for c3s daily ACTIVE tcdr timeseries files.'''  # todo update documentation
 
-    common_attributes = c3s_sm_ts_attr()
+class C3S_daily_tsatt_nc(object):
 
-    def __init__(self, version, product_sensor_type, product_temp_res, product_sub_type, version_sub_string='.0.0'):
-        self.product_temp_res = product_temp_res
+    def __init__(self, VersionAttrs=C3S_SM_TS_Attrs, product_sub_type='TCDR',
+                 product_sensor_type='active', sub_version='.0.0'):
+
+        self.version_attributes = VersionAttrs(product_sensor_type=product_sensor_type,
+                                               sub_version=sub_version)
+
+        self.version = self.version_attributes.version
+        version_sub_string = self.version_attributes.version_sub_string
+        product_sensor_type = self.version_attributes.product_sensor_type
+
+        self.product_temp_res = 'daily'
         self.product_sub_type = product_sub_type
         self.version_sub_string = version_sub_string
-        self.common_attributes.atts_product_sensor_type(product_sensor_type)
-        self.common_attributes.dn_flag()
-        self.common_attributes.flag()
-        self.common_attributes.freqbandID_flag()
-        self.common_attributes.mode_flag()
-        self.common_attributes.sensor_flag()
+        self.version_attributes.atts_product_sensor_type(product_sensor_type)
+        self.version_attributes.dn_flag()
+        self.version_attributes.flag()
+        self.version_attributes.freqbandID_flag()
+        self.version_attributes.mode_flag()
+        self.version_attributes.sensor_flag()
 
         self.ts_attributes = {
             'dnflag': {'full_name': 'Day / Night Flag',
                        'units': '1',
-                       'flag_values': self.common_attributes.dn_flag_values,
-                       'flag_meanings': self.common_attributes.dn_flag_meanings},
+                       'flag_values': self.version_attributes.dn_flag_values,
+                       'flag_meanings': self.version_attributes.dn_flag_meanings},
             'flag': {'full_name': 'Flag',
                      'units': '1',
-                     'flag_values': self.common_attributes.flag_values,
-                     'flag_meanings': self.common_attributes.flag_meanings},
+                     'flag_values': self.version_attributes.flag_values,
+                     'flag_meanings': self.version_attributes.flag_meanings},
             'freqbandID': {'full_name': 'Frequency Band Identification',
                            'units': '1',
-                           'flag_values': self.common_attributes.freqbandID_flag_values,
-                           'flag_meanings': self.common_attributes.freqbandID_flag_meanings},
+                           'flag_values': self.version_attributes.freqbandID_flag_values,
+                           'flag_meanings': self.version_attributes.freqbandID_flag_meanings},
             'mode': {'full_name': 'Satellite  Mode',
                      'units': '1',
-                     'flag_values': self.common_attributes.mode_flag_values,
-                     'flag_meanings': self.common_attributes.mode_flag_meanings},
+                     'flag_values': self.version_attributes.mode_flag_values,
+                     'flag_meanings': self.version_attributes.mode_flag_meanings},
             'sensor': {'full_name': 'Sensor',
                        'units': '1',
-                       'flag_values': self.common_attributes.sensor_flag_values,
-                       'flag_meanings': self.common_attributes.sensor_flag_meanings},
-            'sm': {'full_name': self.common_attributes.sm_full_name,
-                   'units': self.common_attributes.sm_units},
-            'sm_uncertainty': {'full_name': self.common_attributes.sm_uncertainty_full_name,
-                               'units': self.common_attributes.sm_uncertainty_units},
+                       'flag_values': self.version_attributes.sensor_flag_values,
+                       'flag_meanings': self.version_attributes.sensor_flag_meanings},
+            'sm': {'full_name': self.version_attributes.sm_full_name,
+                   'units': self.version_attributes.sm_units},
+            'sm_uncertainty': {'full_name': self.version_attributes.sm_uncertainty_full_name,
+                               'units': self.version_attributes.sm_uncertainty_units},
             't0': {'full_name': 'Observation Timestamp',
                    'units': 'days since 1970-01-01 00:00:00 UTC'}}
 
         product_name = "-".join(['C3S', 'SOILMOISTURE', 'L3S',
-                                 self.common_attributes.product_datatype_str[product_sensor_type].upper(),
+                                 self.version_attributes.product_datatype_str[product_sensor_type].upper(),
                                  product_sensor_type.upper(), self.product_temp_res.upper(),
                                  self.product_sub_type.upper(),
-                                 version + self.version_sub_string])
+                                 self.version + self.version_sub_string])
 
         self.global_attr = {'product': product_name,
                             'resolution': '0.25 degree',
                             'temporalspacing': self.product_temp_res}
 
 
-class c3s_v201706_dekadal_tcdr_active_tsatt_nc(object):
-    # todo same as above - integrate with c3s_sm_ts_attr
-    '''	Attributes for c3s dekadal and monthly for active, passive and combined tcdr and icdr timeseries files.'''
+class C3S_dekmon_tsatt_nc(object):
+    '''	Attributes for c3s dekadal and monthly for active, passive and combined
+    tcdr and icdr timeseries files.'''
 
-    common_attributes = c3s_sm_ts_attr()
+    def __init__(self, VersionAttrs, product_temp_res='monthly',
+                 product_sub_type='TCDR', product_sensor_type='active', sub_version='.0.0'):
 
-    def __init__(self, version, product_sensor_type, product_temp_res, product_sub_type, version_sub_string='.0.0'):
-        # todo update documentation
+        self.version_attributes = VersionAttrs(product_sensor_type=product_sensor_type,
+                                               sub_version=sub_version)
+
+
+        self.version = self.version_attributes.version
+        version_sub_string = self.version_attributes.version_sub_string
+        product_sensor_type = self.version_attributes.product_sensor_type
+
         self.product_temp_res = product_temp_res
         self.product_sub_type = product_sub_type
         self.version_sub_string = version_sub_string
-        self.common_attributes.atts_product_sensor_type(product_sensor_type)
-        self.common_attributes.sensor_flag()
+        self.version_attributes.atts_product_sensor_type(product_sensor_type)
+        self.version_attributes.dn_flag()
+        self.version_attributes.freqbandID_flag()
+
+        self.version_attributes.sensor_flag()
+
+
 
         self.ts_attributes = {
             'freqbandID': {'full_name': 'Frequency Band Identification',
                            'units': '1',
-                           'flag_values': self.common_attributes.freqbandID_flag_values,
-                           'flag_meanings': self.common_attributes.freqbandID_flag_meanings},
+                           'flag_values': self.version_attributes.freqbandID_flag_values,
+                           'flag_meanings': self.version_attributes.freqbandID_flag_meanings},
             'sensor': {'full_name': 'Sensor',
                        'units': '1',
-                       'flag_values': self.common_attributes.sensor_flag_values,
-                       'flag_meanings': self.common_attributes.sensor_flag_meanings},
+                       'flag_values': self.version_attributes.sensor_flag_values,
+                       'flag_meanings': self.version_attributes.sensor_flag_meanings},
             'nobs': {'full_name': 'Number of valid observation'},
-            'sm': {'full_name': self.common_attributes.sm_full_name,
-                   'units': self.common_attributes.sm_units}}
+            'sm': {'full_name': self.version_attributes.sm_full_name,
+                   'units': self.version_attributes.sm_units}}
 
         product_name = "-".join(['C3S', 'SOILMOISTURE', 'L3S',
-                                 self.common_attributes.product_datatype_str[product_sensor_type].upper(),
+                                 self.version_attributes.product_datatype_str[product_sensor_type].upper(),
                                  product_sensor_type.upper(), self.product_temp_res.upper(),
                                  self.product_sub_type.upper(),
-                                 version + self.version_sub_string])
+                                 self.version + self.version_sub_string])
 
         self.global_attr = {'product': product_name,
                             'resolution': '0.25 degree',
                             'temporalspacing': self.product_temp_res}
+
+
+
+
+# just a dummy for new versions
+class C3S_SM_TS_Attrs_v201801(C3S_SM_TS_Attrs):
+    # Example for a version specific attribute class, last part defines version
+    def __init__(self, product_sensor_type, sub_version='.0.0'):
+
+        version = type(self).__name__.split('_')[-1]
+        super(C3S_SM_TS_Attrs_v201801, self).__init__(product_sensor_type, version,
+                                                      sub_version)
+
+    def sensor_flag(self):
+        # version specific sensor flags, override the default ones
+        sensor_flag_dict = {0: 'NaN',
+                            1: 'SMMR',
+                            2: 'SSMI',
+                            4: 'TMI',
+                            8: 'AMSRE',
+                            16: 'WindSat',
+                            800: 'AMSR2+ASCATA+ASCATB'}
+        self.sensor_flag_values = np.array(sorted(sensor_flag_dict.keys()), dtype=np.int)
+        self.sensor_flag_meanings = " ".join([sensor_flag_dict[key] for key in self.sensor_flag_values])
+
+        return self.sensor_flag_values, self.sensor_flag_meanings
+
+    def flag(self):
+        # version specific flags, override the default ones
+
+        flag_dict = {0: 'no_data_inconsistency_detected',
+                     1: 'snow_coverage_or_temperature_below_zero',
+                     2: 'dense_vegetation',
+                     3: 'combination_of_flag_values_1_and_2',
+                     4: 'others_no_convergence_in_the_model_thus_no_valid_sm_estimates',
+                     22: 'combination_of_flag_values_2_and_4_and_16',
+                     23: 'combination_of_flag_values_1_and_2_and_4_and_16',
+                     127: 'nan'}
+        self.flag_values = np.array(sorted(flag_dict.keys()), dtype=np.byte)
+        self.flag_meanings = " ".join([flag_dict[key] for key in self.flag_values])
+
+        return self.flag_values, self.flag_meanings
+
+
+
+
+if __name__ == '__main__':
+    o = C3S_SM_TS_Attrs_v201801('active')
+
+    dob = C3S_dekmon_tsatt_nc(C3S_SM_TS_Attrs_v201801, product_sub_type='TCDR',
+                 product_sensor_type='active', product_temp_res='monthly', sub_version='.9.9')
+
+    attr = C3S_SM_TS_Attrs_v201801('active')
+

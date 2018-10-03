@@ -15,15 +15,8 @@ from repurpose.img2ts import Img2Ts
 from interface import C3S_Nc_Img_Stack
 from smecv_grid.grid import SMECV_Grid_v042 as c3s_grid
 import warnings
-
-def get_metadata():
-    '''
-    Reads metadata from the image file, to pass to the time series
-    Returns
-    -------
-
-    '''
-    pass
+import metadata
+from metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
 
 
 def mkdate(datestring):
@@ -50,9 +43,8 @@ def str2bool(val):
     else:
         return False
 
-def reshuffle(input_root, outputpath,
-              startdate, enddate,
-              parameters, land_points=True, sub_path=['%Y'],
+def reshuffle(input_root, outputpath, startdate, enddate,
+              parameters, land_points=True,
               imgbuffer=50):
     """
     Reshuffle method applied to C3S data.
@@ -77,24 +69,41 @@ def reshuffle(input_root, outputpath,
     else:
         grid = c3s_grid(subset_flag=None)
 
-    input_dataset = C3S_Nc_Img_Stack(input_root, parameters, sub_path, grid,
+
+    input_dataset = C3S_Nc_Img_Stack(input_root, parameters, grid,
                                      array_1D=True)
+
+    prod_args = input_dataset.fname_args
+
+
+    kwargs = {'product_sensor_type' : prod_args['sensor_type'].lower(),
+              'sub_version' : '.' + prod_args['sub_version'],
+              'product_sub_type': prod_args['sub_prod']}
+
+    class_str = "C3S_SM_TS_Attrs_%s" % (prod_args['version'])
+    subattr = getattr(metadata, class_str)
+
+    if prod_args['temp_res'] == 'DAILY':
+        attrs = C3S_daily_tsatt_nc(subattr, **kwargs)
+    else:
+        attrs = C3S_dekmon_tsatt_nc(subattr, **kwargs)
+
+    ts_attributes = {}
+    global_attributes = attrs.global_attr
+
+    # todo: attrs for all vars or only for the ones that TS were created for.
+    for var in parameters:
+        ts_attributes.update(attrs.ts_attributes[var])
+
 
     if not os.path.exists(outputpath):
         os.makedirs(outputpath)
 
-    # todo: copy metadata from all files to time series files.
-    global_attr = {'product': 'C3S'}
-
-    # get time series attributes from first day of data.
-    data = input_dataset.read(startdate)
-    #ts_attributes = data.metadata
-    ts_attributes = global_attr
 
     reshuffler = Img2Ts(input_dataset=input_dataset, outputpath=outputpath,
                         startdate=startdate, enddate=enddate, input_grid=grid,
                         imgbuffer=imgbuffer, cellsize_lat=5.0,
-                        cellsize_lon=5.0, global_attr=global_attr, zlib=True,
+                        cellsize_lon=5.0, global_attr=global_attributes, zlib=True,
                         unlim_chunksize=1000, ts_attributes=ts_attributes)
     reshuffler.calc()
 
@@ -133,6 +142,7 @@ def parse_args(args):
                         nargs="+",
                         help=("Parameters to reshuffle into time series format. "
                               "e.g. sm for creating soil moisture time series"))
+
     parser.add_argument("--land_points", type=str2bool, default='False',
                         help=("Set True to convert only land points as defined"
                               " in the C3s land mask (faster and less/smaller files)"))
@@ -180,7 +190,7 @@ if __name__ == '__main__':
 
 
     cmd = [r'C:\Temp\tcdr\active_daily', r'C:\Temp\tcdr\ts',
-           '1991-08-05', '1991-08-10', 'sm']
+           '1991-08-05', '1991-08-10', 'sm', '--land_points', 'True']
     main(cmd)
 
 

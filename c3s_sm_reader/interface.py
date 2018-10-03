@@ -52,7 +52,8 @@ from parse import parse
 def c3s_filename_template(name='default'):
     # this function can be used in case the filename changes at some point.
     if name == 'default':
-        return '{product}-SOILMOISTURE-L3S-{data_type}-{sensor_type}-{temp_res}-{datetime}000000-{subprod}-{version}.0.0.nc'
+        return '{product}-SOILMOISTURE-L3S-{data_type}-{sensor_type}-{temp_res}-' \
+               '{datetime}000000-{sub_prod}-{version}.{sub_version}.nc'
 
 
 class C3STs(GriddedNcOrthoMultiTs):
@@ -104,7 +105,7 @@ class C3STs(GriddedNcOrthoMultiTs):
         return ts
 
 
-    def read_cell(self, cell, var=None):
+    def read_cell(self, cell, var='sm'):
         """
         Read all time series for the selected cell.
 
@@ -112,7 +113,7 @@ class C3STs(GriddedNcOrthoMultiTs):
         -------
         cell: int
             Cell number as in the c3s grid
-        var : str
+        var : str, optional (default: 'sm')
             Name of the variable to read.
         """
 
@@ -234,8 +235,7 @@ class C3SImg(ImageBase):
 
 class C3S_Nc_Img_Stack(MultiTemporalImageBase):
 
-    def __init__(self, data_path, parameters='sm', sub_path=['%Y'],
-                 subgrid=None, array_1D=False):
+    def __init__(self, data_path, parameters='sm', subgrid=None, array_1D=False):
         '''
         Parameters
         ----------
@@ -260,10 +260,16 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
         self.fname_args = self._parse_filename(template)
         filename_templ = template.format(**self.fname_args)
 
+        # todo: is this fixed?
+        if self.fname_args['temp_res'] == 'DAILY':
+            subpath_templ = ['%Y']
+        else:
+            subpath_templ = None
+
         super(C3S_Nc_Img_Stack, self).__init__(path=data_path, ioclass=C3SImg,
                                                fname_templ=filename_templ ,
                                                datetime_format="%Y%m%d",
-                                               subpath_templ=sub_path,
+                                               subpath_templ=subpath_templ,
                                                exact_templ=True,
                                                ioclass_kws=ioclass_kwargs)
 
@@ -340,9 +346,10 @@ if __name__ == '__main__':
     path = r'C:\Users\wpreimes\AppData\Local\Temp\tmphbaubd'
     ds = C3STs(path)
     ts = ds.read(-159.625, 65.875)
+    cd = ds.read_cell(2244)
 
     afile = r"C:\Temp\tcdr\active_daily"
-    ds = C3S_Nc_Img_Stack(afile, parameters=['sm'], sub_path=['%Y'],
+    ds = C3S_Nc_Img_Stack(afile, parameters=['sm'],
                  subgrid=None, array_1D=False)
 
     img = ds.read(timestamp=datetime(1991,8,6))
@@ -353,5 +360,5 @@ if __name__ == '__main__':
 
 
     afile = r"C:\Temp\tcdr\active_daily\1991\C3S-SOILMOISTURE-L3S-SSMS-ACTIVE-DAILY-19910805000000-TCDR-v201801.0.0.nc"
-    img = C3SImg(afile, ['sm', 'sm_uncertainty'], None, True)
+    img = C3SImg(afile, ['sm', 'sm_uncertainty'], 'r', None, True)
     image = img.read()
