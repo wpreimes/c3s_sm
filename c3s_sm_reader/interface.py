@@ -81,13 +81,7 @@ class C3STs(GriddedNcOrthoMultiTs):
         grid = load_grid(grid_path)
 
         super(C3STs, self).__init__(ts_path, grid=grid)
-        '''
-        super(C3STs, self).__init__(ts_path, grid=grid,
-                                    ioclass=GriddedNcOrthoMultiTs,
-                                    ioclass_kws={'read_bulk': True},
-                                    mode='r',
-                                    fn_format='{:04d}')
-        '''
+
 
     def _read_gp(self, gpi, **kwargs):
         """Read a single point from passed gpi or from passed lon, lat """
@@ -161,7 +155,7 @@ class C3SImg(ImageBase):
             parameters = [parameters]
 
         self.parameters = parameters
-        self.grid = C3SCellGrid(subset=None) if not subgrid else subgrid
+        self.grid = C3SCellGrid() if not subgrid else subgrid
         self.array_1D = array_1D
 
     def read(self, timestamp=None):
@@ -198,10 +192,16 @@ class C3SImg(ImageBase):
             for attr in variable.ncattrs():
                 param_metadata.update({str(attr): getattr(variable, attr)})
 
+            param_data = variable[0][:].filled().flatten()
+
+            param_img[str(param)] = param_data[np.sort(self.grid.activegpis)]
+            img_meta[param] = param_metadata
+
+            '''
             #there is always only day per file?
             param_img[param] = variable[0][:].flatten().filled()
             img_meta[param] = param_metadata
-
+            '''
         # add global attributes
         for attr in ds.ncattrs():
             img_meta['global'][attr] = ds.getncattr(attr)
@@ -331,7 +331,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
             raise NotImplementedError
 
         timestamps = [start_date]
-        while next(timestamps[-1])  <= end_date:
+        while next(timestamps[-1]) <= end_date:
             timestamps.append(next(timestamps[-1]))
 
         return timestamps
@@ -342,15 +342,26 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
 
 
 if __name__ == '__main__':
+    from grid import C3SCellGrid, C3SLandGrid
+    import matplotlib.pyplot as plt
+
+    afile = r"H:\code\c3s_sm_reader\tests\test-data\img\TCDR\061_monthlyImages\combined\C3S-SOILMOISTURE-L3S-SSMV-COMBINED-MONTHLY-20160401000000-TCDR-v201801.0.0.nc"
+    img = C3SImg(afile, 'sm', 'r', subgrid=C3SLandGrid(), array_1D=True)
+    image = img.read()
+
+
+
+    afile = r"C:\Temp\tcdr\active_daily"
+    ds = C3S_Nc_Img_Stack(afile, parameters=['sm'],
+                 subgrid=C3SLandGrid(), array_1D=True)
+
 
     path = r'C:\Users\wpreimes\AppData\Local\Temp\tmphbaubd'
     ds = C3STs(path)
     ts = ds.read(-159.625, 65.875)
     cd = ds.read_cell(2244)
 
-    afile = r"C:\Temp\tcdr\active_daily"
-    ds = C3S_Nc_Img_Stack(afile, parameters=['sm'],
-                 subgrid=None, array_1D=False)
+
 
     img = ds.read(timestamp=datetime(1991,8,6))
 
@@ -359,6 +370,3 @@ if __name__ == '__main__':
 
 
 
-    afile = r"C:\Temp\tcdr\active_daily\1991\C3S-SOILMOISTURE-L3S-SSMS-ACTIVE-DAILY-19910805000000-TCDR-v201801.0.0.nc"
-    img = C3SImg(afile, ['sm', 'sm_uncertainty'], 'r', None, True)
-    image = img.read()

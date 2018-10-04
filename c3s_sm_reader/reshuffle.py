@@ -13,7 +13,7 @@ from pygeogrids import BasicGrid
 
 from repurpose.img2ts import Img2Ts
 from interface import C3S_Nc_Img_Stack
-from smecv_grid.grid import SMECV_Grid_v042 as c3s_grid
+from grid import C3SLandGrid, C3SCellGrid
 import warnings
 import metadata
 from metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
@@ -65,13 +65,13 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     """
 
     if land_points:
-        grid = c3s_grid(subset_flag='land')
+        grid = C3SLandGrid()
     else:
-        grid = c3s_grid(subset_flag=None)
+        grid = C3SCellGrid()
 
 
-    input_dataset = C3S_Nc_Img_Stack(input_root, parameters, grid,
-                                     array_1D=True)
+    input_dataset = C3S_Nc_Img_Stack(data_path=input_root, parameters=parameters,
+                                     subgrid=grid, array_1D=True)
 
     prod_args = input_dataset.fname_args
 
@@ -193,5 +193,8 @@ if __name__ == '__main__':
            '1991-08-05', '1991-08-10', 'sm', '--land_points', 'True']
     main(cmd)
 
+    from interface import C3STs
 
+    ds = C3STs(r'C:\Temp\tcdr\ts')
+    ds.read(47.875, 7.875)
     run()
