@@ -15,30 +15,30 @@ def test_daily_metadata_default_active():
 
     default_attr.flag()
     assert(default_attr.flag_values[0] == 0)
-    assert(default_attr.flag_meanings[0] == 'no_data_inconsistency_detected')
+    assert(default_attr.flag_meanings.split(' ')[0] == 'no_data_inconsistency_detected')
     assert(default_attr.flag_values[10] == 17)
-    assert(default_attr.flag_meanings[10] == 'combination_of_flag_values_1_and_16')
+    assert(default_attr.flag_meanings.split(' ')[10] == 'combination_of_flag_values_1_and_16')
 
     default_attr.freqbandID_flag()
     assert (default_attr.freqbandID_flag_values[0] == 0)
-    assert (default_attr.freqbandID_flag_meanings[0] == 'NaN')
+    assert (default_attr.freqbandID_flag_meanings.split(' ')[0] == 'NaN')
 
-    assert (default_attr.flag_values[10] == 34)
-    assert (default_attr.flag_meanings[10] == 'C53+C73')
+    assert (default_attr.freqbandID_flag_values[10] == 34)
+    assert (default_attr.freqbandID_flag_meanings.split(' ')[10] == 'C53+C73')
 
     default_attr.sensor_flag()
-    assert (default_attr.flag_values[0] == 0)
-    assert (default_attr.flag_meanings[0] == 'NaN')
+    assert (default_attr.sensor_flag_values[0] == 0)
+    assert (default_attr.sensor_flag_meanings.split(' ')[0] == 'NaN')
 
-    assert (default_attr.flag_values[10] == 132)
-    assert (default_attr.flag_meanings[10] == 'TMI+AMIWS')
+    assert (default_attr.sensor_flag_values[10] == 132)
+    assert (default_attr.sensor_flag_meanings.split(' ')[10] == 'TMI+AMIWS')
 
     default_attr.mode_flag()
-    assert (default_attr.flag_values[0] == 0)
-    assert (default_attr.flag_meanings[0] == 'nan')
+    assert (default_attr.mode_flag_values[0] == 0)
+    assert (default_attr.mode_flag_meanings.split(' ')[0] == 'nan')
 
-    assert (default_attr.flag_values[3] == 3)
-    assert (default_attr.flag_meanings[3] == 'ascending_descending_combination')
+    assert (default_attr.mode_flag_values[3] == 3)
+    assert (default_attr.mode_flag_meanings.split(' ')[3] == 'ascending_descending_combination')
 
 
 def test_daily_metadata_default_passive_and_combined():
@@ -53,30 +53,30 @@ def test_daily_metadata_default_passive_and_combined():
 
         default_attr.flag()
         assert (default_attr.flag_values[0] == 0)
-        assert (default_attr.flag_meanings[0] == 'no_data_inconsistency_detected')
+        assert (default_attr.flag_meanings.split(' ')[0] == 'no_data_inconsistency_detected')
         assert (default_attr.flag_values[10] == 17)
-        assert (default_attr.flag_meanings[10] == 'combination_of_flag_values_1_and_16')
+        assert (default_attr.flag_meanings.split(' ')[10] == 'combination_of_flag_values_1_and_16')
 
         default_attr.freqbandID_flag()
         assert (default_attr.freqbandID_flag_values[0] == 0)
-        assert (default_attr.freqbandID_flag_meanings[0] == 'NaN')
+        assert (default_attr.freqbandID_flag_meanings.split(' ')[0] == 'NaN')
 
-        assert (default_attr.flag_values[10] == 34)
-        assert (default_attr.flag_meanings[10] == 'C53+C73')
+        assert (default_attr.freqbandID_flag_values[10] == 34)
+        assert (default_attr.freqbandID_flag_meanings.split(' ')[10] == 'C53+C73')
 
         default_attr.sensor_flag()
-        assert (default_attr.flag_values[0] == 0)
-        assert (default_attr.flag_meanings[0] == 'NaN')
+        assert (default_attr.sensor_flag_values[0] == 0)
+        assert (default_attr.sensor_flag_meanings.split(' ')[0] == 'NaN')
 
-        assert (default_attr.flag_values[10] == 132)
-        assert (default_attr.flag_meanings[10] == 'TMI+AMIWS')
+        assert (default_attr.sensor_flag_values[10] == 132)
+        assert (default_attr.sensor_flag_meanings.split(' ')[10]== 'TMI+AMIWS')
 
         default_attr.mode_flag()
-        assert (default_attr.flag_values[0] == 0)
-        assert (default_attr.flag_meanings[0] == 'nan')
+        assert (default_attr.mode_flag_values[0] == 0)
+        assert (default_attr.mode_flag_meanings.split(' ')[0] == 'nan')
 
         assert (default_attr.flag_values[3] == 3)
-        assert (default_attr.flag_meanings[3] == 'ascending_descending_combination')
+        assert (default_attr.mode_flag_meanings.split(' ')[3] == 'ascending_descending_combination')
 
 def test_C3s_daily_tsatt_nc():
     subtype = 'TCDR'
@@ -125,3 +125,6 @@ def test_C3s_dekmon_tsatt_nc():
 
 if __name__ == '__main__':
     test_C3s_dekmon_tsatt_nc()
+    test_C3s_daily_tsatt_nc()
+    test_daily_metadata_default_passive_and_combined()
+    test_daily_metadata_default_active()
