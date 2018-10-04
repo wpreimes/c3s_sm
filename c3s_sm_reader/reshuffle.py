@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Module for a command line interface to convert the GLDAS data into a
+Module for a command line interface to convert the C3S data into a
 time series format using the repurpose package
 """
 
@@ -9,12 +9,9 @@ import sys
 import argparse
 from datetime import datetime
 
-from pygeogrids import BasicGrid
-
 from repurpose.img2ts import Img2Ts
 from interface import C3S_Nc_Img_Stack
 from grid import C3SLandGrid, C3SCellGrid
-import warnings
 import metadata
 from metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
 
@@ -51,7 +48,7 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     Parameters
     ----------
     input_root: string
-        input path where gldas data was downloaded
+        input path where c3s images were downloaded.
     outputpath : string
         Output path.
     startdate : datetime
@@ -60,7 +57,10 @@ def reshuffle(input_root, outputpath, startdate, enddate,
         End date.
     parameters: list
         parameters to read and convert
-    imgbuffer: int, optional
+    land_points : bool, optional (default: True)
+        Use the land grid to calculate time series on.
+        Leads to faster processing and smaller files.
+    imgbuffer: int, optional (default: 50)
         How many images to read at once before writing time series.
     """
 
@@ -116,6 +116,7 @@ def parse_args(args):
     ----------
     args : list of str
         Command line parameters as list of strings.
+
     Returns
     -------
     args : argparse.Namespace

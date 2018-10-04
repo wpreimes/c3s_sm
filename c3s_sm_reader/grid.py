@@ -9,6 +9,7 @@ def C3SCellGrid():
     Returns
     -------
     grid : CellGrid
+        The global QDEG grid
     '''
     resolution = 0.25
     lon, lat = np.meshgrid(
@@ -18,6 +19,16 @@ def C3SCellGrid():
     return BasicGrid(lon.flatten(), lat.flatten()).to_cell_grid(cellsize=5.)
 
 def C3SLandPoints(grid):
+    '''
+    Create a subset of land points.
+    Returns
+    -------
+    points : np.array
+        Points in the passed grid that are over land
+    dist : np.array
+        Distance between the reference land points and the next point in the
+        passed grid.
+    '''
     lg = SMECV_Grid_v042('land')
     lat = lg.get_grid_points()[2]
     lon = lg.get_grid_points()[1]
@@ -29,13 +40,17 @@ def C3SLandPoints(grid):
 
 def C3SLandGrid():
     '''
-    0.25deg cell grid of land points from gldas land mask.
-    :return: global QDEG-LandGrid
+    0.25deg cell grid of land points from c3s land mask.
+
+    Returns
+    -------
+    landgrid : CellGrid
+        The reduced QDEG grid
     '''
     grid = C3SCellGrid()
     land_gpis, dist = C3SLandPoints(grid)
     if any(dist) > 0:
-        raise Exception('GLDAS grid does not conform with QDEG grid')
+        raise Exception('C3S grid does not conform with QDEG grid')
     return grid.subgrid_from_gpis(land_gpis)
 
 

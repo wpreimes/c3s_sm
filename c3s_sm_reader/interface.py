@@ -25,7 +25,6 @@ Readers for the C3S soil moisture proudct daily, dekadal (10-daily) and monthly 
 as for timeseries generated using this module
 '''
 
-import inspect
 import pandas as pd
 import os
 import netCDF4 as nc
@@ -38,16 +37,12 @@ from pygeobase.io_base import ImageBase
 from pygeobase.io_base import MultiTemporalImageBase
 from pygeogrids.netcdf import load_grid
 
-from smecv_grid.grid import SMECV_Grid_v042
-from netCDF4 import Dataset, num2date
+from netCDF4 import Dataset
 from pynetcf.time_series import GriddedNcOrthoMultiTs
-from pynetcf.time_series import IndexedRaggedTs, GriddedNcTs
-from pygeogrids.grids import CellGrid
 from datetime import datetime
-from datetime import time as dt_time
-from collections import Iterable
-from grid import C3SCellGrid
 from parse import parse
+from grid import C3SCellGrid, C3SLandGrid
+
 
 def c3s_filename_template(name='default'):
     # this function can be used in case the filename changes at some point.
@@ -101,7 +96,7 @@ class C3STs(GriddedNcOrthoMultiTs):
 
     def read_cell(self, cell, var='sm'):
         """
-        Read all time series for the selected cell.
+        Read all time series for a single variable in the selected cell.
 
         Parameters
         -------
@@ -131,11 +126,11 @@ class C3STs(GriddedNcOrthoMultiTs):
 
 class C3SImg(ImageBase):
     """
-    Module for a single C3S image (for one time stamp)
+    Class to read a single C3S image (for one time stamp)
     """
-
     def __init__(self, filename, parameters='sm', mode='r', subgrid=None,
                  array_1D=False):
+        # todo: get rid of mode?
         '''
         Parameters
         ----------
@@ -144,6 +139,8 @@ class C3SImg(ImageBase):
         parameters : str or Iterable, optional (default: 'sm')
             Names of parameters in the file to read.
             If None are passed, all are read.
+        mode : str, optional (default: 'r')
+            Netcdf file mode, choosing something different to r may delete data.
         array_1D : bool, optional (default: False)
             Read image as one dimensional array, instead of a 2D array
             Use this when using a subgrid.
@@ -164,8 +161,8 @@ class C3SImg(ImageBase):
 
         Parameters
         -------
-        timestamp: datetime
-            Timestamp file file to read.
+        timestamp: datetime, optional (default: None)
+            Timestamp for file to read. Pass None if file contains only 1 timestamp
 
         Returns
         -------
@@ -197,11 +194,6 @@ class C3SImg(ImageBase):
             param_img[str(param)] = param_data[np.sort(self.grid.activegpis)]
             img_meta[param] = param_metadata
 
-            '''
-            #there is always only day per file?
-            param_img[param] = variable[0][:].flatten().filled()
-            img_meta[param] = param_metadata
-            '''
         # add global attributes
         for attr in ds.ncattrs():
             img_meta['global'][attr] = ds.getncattr(attr)
@@ -234,7 +226,7 @@ class C3SImg(ImageBase):
 
 
 class C3S_Nc_Img_Stack(MultiTemporalImageBase):
-
+    '''Class for reading multiple images and iterate over them. '''
     def __init__(self, data_path, parameters='sm', subgrid=None, array_1D=False):
         '''
         Parameters
@@ -243,8 +235,6 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
             Path to directory where C3S images are stored
         parameters : list or str,  optional (default: 'sm')
             Variables to read from the image files.
-        sub_path : list or None, optional (default: ['%Y'])
-            List of subdirectories in the data path
         subgrid : grid, optional (default: None)
             Subset of the image to read
         array_1D : bool, optional (default: False)
@@ -260,7 +250,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
         self.fname_args = self._parse_filename(template)
         filename_templ = template.format(**self.fname_args)
 
-        # todo: is this fixed?
+        # todo: is this fixed? Daily data is organised differently than M and 10D?
         if self.fname_args['temp_res'] == 'DAILY':
             subpath_templ = ['%Y']
         else:
@@ -321,6 +311,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
             list of datetime objects of each available image between
             start_date and end_date
         '''
+
         if self.fname_args['temp_res'] == 'MONTHLY':
             next = lambda date : date + relativedelta(months=+1)
         elif self.fname_args['temp_res'] == 'DAILY':
@@ -336,36 +327,22 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
 
         return timestamps
 
-
-
-
-
-
 if __name__ == '__main__':
-    from grid import C3SCellGrid, C3SLandGrid
-    import matplotlib.pyplot as plt
 
     afile = r"H:\code\c3s_sm_reader\tests\test-data\img\TCDR\061_monthlyImages\combined\C3S-SOILMOISTURE-L3S-SSMV-COMBINED-MONTHLY-20160401000000-TCDR-v201801.0.0.nc"
     img = C3SImg(afile, 'sm', 'r', subgrid=C3SLandGrid(), array_1D=True)
     image = img.read()
 
-
-
     afile = r"C:\Temp\tcdr\active_daily"
     ds = C3S_Nc_Img_Stack(afile, parameters=['sm'],
                  subgrid=C3SLandGrid(), array_1D=True)
-
 
     path = r'C:\Users\wpreimes\AppData\Local\Temp\tmphbaubd'
     ds = C3STs(path)
     ts = ds.read(-159.625, 65.875)
     cd = ds.read_cell(2244)
-
-
-
     img = ds.read(timestamp=datetime(1991,8,6))
 
-    images = ds.iter_images(start_date=datetime(1991,8,5), end_date=datetime(1991,8,10))
 
 
 
