@@ -41,7 +41,7 @@ from netCDF4 import Dataset
 from pynetcf.time_series import GriddedNcOrthoMultiTs
 from datetime import datetime
 from parse import parse
-from grid import C3SCellGrid, C3SLandGrid
+from .grid import C3SCellGrid, C3SLandGrid
 
 
 def c3s_filename_template(name='default'):
