@@ -10,8 +10,8 @@ import argparse
 from datetime import datetime
 
 from repurpose.img2ts import Img2Ts
-from interface import C3S_Nc_Img_Stack
-from grid import C3SLandGrid, C3SCellGrid
+from .interface import C3S_Nc_Img_Stack
+from .grid import C3SLandGrid, C3SCellGrid
 import metadata
 from metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
 

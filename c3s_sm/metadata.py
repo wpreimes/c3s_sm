@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+
 class C3S_SM_TS_Attrs(object):
     '''Default, common metadata for daily and monthly, dekadal products'''
     def __init__(self, product_sensor_type, version='v0000', sub_version='.0.0'):
