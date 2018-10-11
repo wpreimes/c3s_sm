@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from c3s_sm_reader.interface import C3S_Nc_Img_Stack
+from c3s_sm.interface import C3S_Nc_Img_Stack
 from datetime import datetime
 import os
 import numpy.testing as nptest

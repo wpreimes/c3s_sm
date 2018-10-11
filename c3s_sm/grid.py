@@ -2,7 +2,11 @@
 
 from pygeogrids.grids import BasicGrid, CellGrid
 import numpy as np
-from smecv_grid.grid import SMECV_Grid_v042
+try:
+    from smecv_grid.grid import SMECV_Grid_v042
+except:
+    import warnings
+    warnings.warn('SMECV grid is not installed')
 
 def C3SCellGrid():
     '''

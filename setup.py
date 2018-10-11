@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-    Setup file for c3s_sm_reader.
+    Setup file for c3s_sm.
 
     This file was generated with PyScaffold 2.5.9, a tool that easily
     puts up a scaffold for your new Python project. Learn more under:

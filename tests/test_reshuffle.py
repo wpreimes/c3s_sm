@@ -7,8 +7,8 @@ import numpy as np
 import numpy.testing as nptest
 import shutil
 
-from c3s_sm_reader.reshuffle import main
-from c3s_sm_reader.interface import C3STs, C3S_Nc_Img_Stack
+from c3s_sm.reshuffle import main
+from c3s_sm.interface import C3STs
 
 
 def test_reshuffle_TCDR_daily():
@@ -17,13 +17,13 @@ def test_reshuffle_TCDR_daily():
     startdate = "1991-08-05"
     enddate = "1991-08-10"
     parameters = ["sm", "sm_uncertainty", "dnflag", "flag", "freqbandID", "mode", "sensor", "t0"]
-    land_points = 'True'
+    land_points = 'False' # TODO: set this to True when the smecv_grid is public
 
     ts_path = tempfile.mkdtemp()
     args = [inpath, ts_path, startdate, enddate] + parameters + ['--land_points', land_points]
     main(args)
 
-    assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 1002
+    assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 2593 # todo: set this to 1002 when using land points only
 
     ds = C3STs(ts_path, remove_nans=True)
     ts = ds.read(75.625, 14.625)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from c3s_sm_reader.metadata import C3S_daily_tsatt_nc, C3S_SM_TS_Attrs, C3S_dekmon_tsatt_nc
+from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_SM_TS_Attrs, C3S_dekmon_tsatt_nc
 
 
 def test_daily_metadata_default_active():

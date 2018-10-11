@@ -1,8 +1,8 @@
 =============
-c3s_sm_reader
+c3s_sm
 =============
 
-This is the documentation of **c3s_sm_reader**.
+This is the documentation of **c3s_sm**.
 
 .. note::
 

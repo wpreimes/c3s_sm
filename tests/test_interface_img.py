@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from c3s_sm_reader.interface import C3SImg
+from c3s_sm.interface import C3SImg
 import os
 import numpy.testing as nptest
 

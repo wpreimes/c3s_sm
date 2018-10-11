@@ -313,11 +313,11 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
         '''
 
         if self.fname_args['temp_res'] == 'MONTHLY':
-            next = lambda date : date + relativedelta(months=+1)
+            next = lambda date : date + relativedelta(months=1)
         elif self.fname_args['temp_res'] == 'DAILY':
-            next = lambda date : date + relativedelta(days=+1)
+            next = lambda date : date + relativedelta(days=1)
         elif self.fname_args['temp_res'] == 'DEKADAL':
-            next = lambda date : date + relativedelta(days=+10)
+            next = lambda date : date + relativedelta(days=10)
         else:
             raise NotImplementedError
 
