@@ -12,7 +12,7 @@ c3s_sm
 .. image:: https://readthedocs.org/projects/c3s_sm/badge/?version=latest
     :target: http://c3s_sm.readthedocs.io/en/latest/?badge=latest
 
-Reading and reshuffling of CCI soil moisture Written in Python.
+Reading and reshuffling of C3S soil moisture Written in Python.
 
 Installation
 ============
