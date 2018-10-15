@@ -3,8 +3,8 @@ c3s_sm
 ============
 
 
-.. image:: https://travis-ci.org/wpreimes/c3s_sm.svg?branch=master
-    :target: https://travis-ci.org/wpreimes/c3s_sm
+.. image:: https://travis-ci.org/TUW-GEO/c3s_sm.svg?branch=master
+    :target: https://travis-ci.org/TUW-GEO/c3s_sm
 
 .. image:: https://coveralls.io/repos/github/TUW-GEO/c3s_sm/badge.svg?branch=master
     :target: https://coveralls.io/github/TUW-GEO/c3s_sm?branch=master
