@@ -41,7 +41,7 @@ install:
   - which python
 
 script:
-  - python setup.py test
+  - travis_wait 30 python setup.py test
 after_success:
   # report coverage results to coveralls.io
   - pip install coveralls
