@@ -7,9 +7,8 @@ import numpy as np
 import numpy.testing as nptest
 import shutil
 
-from c3s_sm.reshuffle import main
+from c3s_sm.reshuffle import main, parse_filename
 from c3s_sm.interface import C3STs
-from c3s_sm.reshuffle import parse_filename
 
 def test_parse_filename():
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),

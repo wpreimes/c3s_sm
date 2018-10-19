@@ -10,14 +10,13 @@ import argparse
 from datetime import datetime
 
 from repurpose.img2ts import Img2Ts
-from c3s_sm.interface import C3S_Nc_Img_Stack
+from c3s_sm.interface import C3S_Nc_Img_Stack, c3s_filename_template
 from c3s_sm.grid import C3SLandGrid, C3SCellGrid
 import c3s_sm.metadata as metadata
 from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
 
 from parse import parse
 
-from interface import c3s_filename_template
 from netCDF4 import Dataset
 
 
