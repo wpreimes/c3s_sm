@@ -20,7 +20,7 @@ methods. We have chosen to do it in the following way:
   .. image:: 5x5_cell_partitioning.png
      :target: 5x5_cell_partitioning.png
 
-This conversion can be performed using the ``gldas_repurpose`` command line
+This conversion can be performed using the ``c3s_repurpose`` command line
 program. An example would be:
 
 .. code-block:: shell
@@ -35,7 +35,7 @@ Conversion to time series is performed by the `repurpose package
 <https://github.com/TUW-GEO/repurpose>`_ in the background. For custom settings
 or other options see the `repurpose documentation
 <http://repurpose.readthedocs.io/en/latest/>`_ and the code in
-``gldas.reshuffle``.
+``c3s_sm.reshuffle``.
 
 Reading converted time series data
 ----------------------------------
