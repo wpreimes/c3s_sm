@@ -73,7 +73,7 @@ def parse_filename(data_dir):
                 file_args = file_args.named
                 file_args['datetime'] = '{datetime}'
                 file_vars = Dataset(os.path.join(curr,f)).variables.keys()
-                return file_args, file_vars
+                return file_args, list(file_vars)
 
     raise IOError('No file name in passed directory fits to template')
 
