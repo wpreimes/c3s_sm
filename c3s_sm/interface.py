@@ -41,14 +41,13 @@ from netCDF4 import Dataset
 from pynetcf.time_series import GriddedNcOrthoMultiTs
 from datetime import datetime
 from parse import parse
-from .grid import C3SCellGrid, C3SLandGrid
+from c3s_sm.grid import C3SCellGrid, C3SLandGrid
 
 
-def c3s_filename_template(name='default'):
+def c3s_filename_template():
     # this function can be used in case the filename changes at some point.
-    if name == 'default':
-        return '{product}-SOILMOISTURE-L3S-{data_type}-{sensor_type}-{temp_res}-' \
-               '{datetime}000000-{sub_prod}-{version}.{sub_version}.nc'
+    return '{product}-SOILMOISTURE-L3S-{data_type}-{sensor_type}-{temp_res}-' \
+           '{datetime}000000-{sub_prod}-{version}.{sub_version}.nc'
 
 
 class C3STs(GriddedNcOrthoMultiTs):

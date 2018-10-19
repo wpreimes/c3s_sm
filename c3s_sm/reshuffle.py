@@ -10,10 +10,15 @@ import argparse
 from datetime import datetime
 
 from repurpose.img2ts import Img2Ts
-from .interface import C3S_Nc_Img_Stack
-from .grid import C3SLandGrid, C3SCellGrid
+from c3s_sm.interface import C3S_Nc_Img_Stack
+from c3s_sm.grid import C3SLandGrid, C3SCellGrid
 import c3s_sm.metadata as metadata
 from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
+
+from parse import parse
+
+from interface import c3s_filename_template
+from netCDF4 import Dataset
 
 
 def mkdate(datestring):
@@ -39,6 +44,40 @@ def str2bool(val):
         return True
     else:
         return False
+
+
+def parse_filename(data_dir):
+    '''
+    Take the first file in the passed directory and use its file name to
+    retrieve the product type, version number and variables in the file.
+
+    Parameters
+    ----------
+    inroot : str
+        Input root directory
+
+    Returns
+    -------
+    file_args : dict
+        Parsed arguments from file name
+    file_vars : list
+        Names of parameters in the first detected file
+    '''
+    template = c3s_filename_template()
+
+    for curr, subdirs, files in os.walk(data_dir):
+        for f in files:
+            file_args = parse(template, f)
+            if file_args is None:
+                continue
+            else:
+                file_args = file_args.named
+                file_args['datetime'] = '{datetime}'
+                file_vars = Dataset(os.path.join(curr,f)).variables.keys()
+                return file_args, file_vars
+
+    raise IOError('No file name in passed directory fits to template')
+
 
 def reshuffle(input_root, outputpath, startdate, enddate,
               parameters, land_points=True,
@@ -69,6 +108,9 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     else:
         grid = C3SCellGrid()
 
+    if parameters is None:
+        file_args, file_vars = parse_filename(input_root)
+        parameters = [p for p in file_vars if p not in ['lat', 'lon', 'time']]
 
     input_dataset = C3S_Nc_Img_Stack(data_path=input_root, parameters=parameters,
                                      subgrid=grid, array_1D=True)
@@ -139,10 +181,11 @@ def parse_args(args):
     parser.add_argument("end", type=mkdate,
                         help=("Enddate. In format YYYY-MM-DD"))
 
-    parser.add_argument("parameters", metavar="parameters",
+    parser.add_argument("--parameters", metavar="parameters", default=None,
                         nargs="+",
                         help=("Parameters to reshuffle into time series format. "
-                              "e.g. sm for creating soil moisture time series"))
+                              "E.g. sm for creating soil moisture time series."
+                              "If None are passed, all variables from the first image file in the path are used."))
 
     parser.add_argument("--land_points", type=str2bool, default='False',
                         help=("Set True to convert only land points as defined"
@@ -191,7 +234,7 @@ if __name__ == '__main__':
 
 
     cmd = [r'C:\Temp\tcdr\active_daily', r'C:\Temp\tcdr\ts',
-           '1991-08-05', '1991-08-10', 'sm', '--land_points', 'True']
+           '1991-08-05', '1991-08-10', '--land_points', 'True']
     main(cmd)
 
     from interface import C3STs
