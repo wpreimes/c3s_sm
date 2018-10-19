@@ -2,9 +2,11 @@
 Changelog
 =========
 
-Version 0.1
-===========
+Version 0.X (unreleased)
+========================
 
-- Feature A added
-- FIX: nasty bug #1729 fixed
-- add your changes here!
+- Add reader from images and image stacks
+- Add reshuffle module
+- Add first version of metadata module
+- Add basic documentation
+- Add unit tests for all modules
