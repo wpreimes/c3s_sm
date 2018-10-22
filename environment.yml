@@ -12,4 +12,5 @@ dependencies:
     - repurpose
     - pytesmo
     - pyresample
-    # - smecv_grid ####when public
+    - parse
+    # - smecv_grid #### when public
