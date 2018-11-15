@@ -182,10 +182,10 @@ latex_elements = {
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
-# latex_documents = [
-#   ('index', 'c3s_sm.tex', u'c3s\\_sm Documentation',
-#    u'Wolfgang Preimesberger', 'manual'),
-# ]
+latex_documents = [
+  ('index', 'c3s_sm.tex', u'c3s\\_sm Documentation',
+   u'Wolfgang Preimesberger', 'manual'),
+]
 
 # The name of an image file (relative to this directory) to place at the top of
 # the title page.
@@ -212,10 +212,10 @@ latex_elements = {
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-# man_pages = [
-#     ('index', 'c3s_sm', u'c3s_sm Documentation',
-#      [u'Wolfgang Preimesberger'], 1)
-# ]
+man_pages = [
+    ('index', 'c3s_sm', u'c3s_sm Documentation',
+     [u'Wolfgang Preimesberger'], 1)
+]
 
 # If true, show URL addresses after external links.
 #man_show_urls = False
@@ -226,11 +226,11 @@ latex_elements = {
 # Grouping the document tree into Texinfo files. List of tuples
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
-# texinfo_documents = [
-#   ('index', 'c3s_sm', u'c3s_sm Documentation',
-#    u'Wolfgang Preimesberger', 'c3s_sm', 'One line description of project.',
-#    'Miscellaneous'),
-# ]
+texinfo_documents = [
+  ('index', 'c3s_sm', u'c3s_sm Documentation',
+   u'Wolfgang Preimesberger', 'c3s_sm', 'One line description of project.',
+   'Miscellaneous'),
+]
 
 # Documents to append as an appendix to all manuals.
 #texinfo_appendices = []
