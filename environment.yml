@@ -2,15 +2,16 @@ name: c3s_sm
 channels:
   - defaults
 dependencies:
-  - python=2.7
   - netcdf4=1.2.2
   - numpy
   - pandas
   - scipy
+  - pytest=3.1.2
   - pip:
     - pynetcf
     - repurpose
     - pytesmo
     - pyresample
     - parse
+    - pytest-cov==2.2.1
     # - smecv_grid #### when public
