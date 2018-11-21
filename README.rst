@@ -9,6 +9,9 @@ c3s_sm
 .. image:: https://coveralls.io/repos/github/TUW-GEO/c3s_sm/badge.svg?branch=master
     :target: https://coveralls.io/github/TUW-GEO/c3s_sm?branch=master
 
+.. image:: https://badge.fury.io/py/c3s-sm.svg
+    :target: https://badge.fury.io/py/c3s-sm
+ 
 .. image:: https://readthedocs.org/projects/c3s_sm/badge/?version=latest
     :target: http://c3s_sm.readthedocs.io/en/latest/?badge=latest
 
