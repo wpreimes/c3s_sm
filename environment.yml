@@ -1,17 +1,13 @@
 name: c3s_sm
 channels:
-  - defaults
+  - conda-forge
 dependencies:
-  - netcdf4=1.2.2
-  - numpy
   - pandas
-  - pytest=3.1.2
+  - netcdf4
+  - pyresample
   - pip:
+    - pygeobase
     - pynetcf
     - repurpose
-    - pyresample
     - parse
-    - pytest-cov==2.2.1
     - smecv_grid
-
-
