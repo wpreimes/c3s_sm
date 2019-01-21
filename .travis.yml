@@ -19,10 +19,10 @@ install:
   # the same.
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
       wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh;
-      downgrade_libnetcdf=False
+      downgrade_libnetcdf=False;
     else
       wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-      downgrade_libnetcdf=True
+      downgrade_libnetcdf=True;
     fi
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
@@ -50,3 +50,12 @@ after_success:
   - pip install coveralls
   - coveralls
 
+
+
+  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+      echo "one";
+      echo "one";
+    else
+      echo "two";
+      echo "two";
+    fi
