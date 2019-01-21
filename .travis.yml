@@ -19,10 +19,10 @@ install:
   # the same.
   - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
       wget http://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
-      downgrade_libnetcdf=False;
+      downgrade_libnetcdf=false;
     else
       wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-      downgrade_libnetcdf=True;
+      downgrade_libnetcdf=true;
     fi
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
@@ -37,7 +37,7 @@ install:
   - conda env update -f environment.yml
 
   - python setup.py develop
-  - if [ $downgrade_libnetcdf ]; then conda install -c conda-forge libnetcdf==4.3.3.1 --yes; fi
+  - if [ "$downgrade_libnetcdf"=true]; then conda install -c conda-forge libnetcdf==4.3.3.1 --yes; fi
 
 
   - pip list
