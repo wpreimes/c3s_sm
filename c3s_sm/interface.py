@@ -58,7 +58,7 @@ class C3STs(GriddedNcOrthoMultiTs):
     def __init__(self, ts_path, grid_path=None, remove_nans=False, **kwargs):
 
         '''
-        Class for reading GLDAS time series after reshuffling.
+        Class for reading C3S SM time series after reshuffling.
 
         Parameters
         ----------
