@@ -32,6 +32,14 @@ Which would take C3S SM data stored in ``/c3s_images`` from January 1st
 of points marked as 'land' in the smecv-grid as time
 series in the folder ``/timeseries/data``.
 
+**Note**: If a ``RuntimeError: NetCDF: Bad chunk sizes.`` appears during reshuffling, consider downgrading the
+netcdf4 C-library via:
+
+.. code-block:: shell
+
+  conda install -c conda-forge libnetcdf==4.3.3.1 --yes
+
+
 Conversion to time series is performed by the `repurpose package
 <https://github.com/TUW-GEO/repurpose>`_ in the background. For custom settings
 or other options see the `repurpose documentation

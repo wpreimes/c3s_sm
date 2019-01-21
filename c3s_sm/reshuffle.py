@@ -14,6 +14,9 @@ from c3s_sm.interface import C3S_Nc_Img_Stack, c3s_filename_template
 from c3s_sm.grid import C3SLandGrid, C3SCellGrid
 import c3s_sm.metadata as metadata
 from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
+from pygeogrids.grids import BasicGrid
+
+import numpy as np
 
 from parse import parse
 
@@ -106,6 +109,15 @@ def reshuffle(input_root, outputpath, startdate, enddate,
         grid = C3SLandGrid()
     else:
         grid = C3SCellGrid()
+
+    gpis, lons, lats, cells = grid.get_grid_points()
+    grid_vars = {'gpis': gpis, 'lons':lons, 'lats':lats}
+    # repurpose cannot handle masked arrays
+    for k, v in grid_vars.items(): # type v: np.ma.MaskedArray
+        if isinstance(v, np.ma.MaskedArray):
+            grid_vars[k] = v.filled()
+
+    grid = BasicGrid(lon=grid_vars['lons'], lat=grid_vars['lats'], gpis=grid_vars['gpis']).to_cell_grid(5.)
 
     if parameters is None:
         file_args, file_vars = parse_filename(input_root)

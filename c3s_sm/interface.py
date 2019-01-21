@@ -55,17 +55,41 @@ class C3STs(GriddedNcOrthoMultiTs):
     Module for reading C3S time series in netcdf format.
     """
 
-    def __init__(self, ts_path, grid_path=None, remove_nans=False):
+    def __init__(self, ts_path, grid_path=None, remove_nans=False, **kwargs):
+
         '''
+        Class for reading C3S SM time series after reshuffling.
+
         Parameters
         ----------
         ts_path : str
-            Path to the netcdf time series files
+            Directory where the netcdf time series files are stored
         grid_path : str, optional (default: None)
-            Path to the netcdf grid file.
-            If None is passed, grid.nc is searched in ts_path.
+            Path to grid file, that is used to organize the location of time
+            series to read. If None is passed, grid.nc is searched for in the
+            ts_path.
         remove_nans : bool, optional (default: False)
             Replace -9999 with np.nan in time series
+
+        Optional keyword arguments that are passed to the Gridded Base:
+        ------------------------------------------------------------------------
+            parameters : list, optional (default: None)
+                Specific variable names to read, if None are selected, all are read.
+            offsets : dict, optional (default:None)
+                Offsets (values) that are added to the parameters (keys)
+            scale_factors : dict, optional (default:None)
+                Offset (value) that the parameters (key) is multiplied with
+            ioclass_kws: dict
+                Optional keyword arguments to pass to OrthoMultiTs class:
+                ----------------------------------------------------------------
+                    read_bulk : boolean, optional (default:False)
+                        if set to True the data of all locations is read into memory,
+                        and subsequent calls to read_ts read from the cache and not from disk
+                        this makes reading complete files faster#
+                    read_dates : boolean, optional (default:False)
+                        if false dates will not be read automatically but only on specific
+                        request useable for bulk reading because currently the netCDF
+                        num2date routine is very slow for big datasets
         '''
         self.remove_nans = remove_nans
 
@@ -74,7 +98,7 @@ class C3STs(GriddedNcOrthoMultiTs):
 
         grid = load_grid(grid_path)
 
-        super(C3STs, self).__init__(ts_path, grid=grid)
+        super(C3STs, self).__init__(ts_path, grid=grid, **kwargs)
 
 
     def _read_gp(self, gpi, **kwargs):
