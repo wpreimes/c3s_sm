@@ -36,8 +36,9 @@ install:
   - source activate c3s_sm
   - conda env update -f environment.yml
 
-  - if [ $downgrade_libnetcdf ]; then conda install -c conda-forge libnetcdf==4.3.3.1 --yes; fi
   - python setup.py develop
+  - if [ $downgrade_libnetcdf ]; then conda install -c conda-forge libnetcdf==4.3.3.1 --yes; fi
+
 
   - pip list
 
