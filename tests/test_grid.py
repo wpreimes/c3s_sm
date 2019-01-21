@@ -37,3 +37,4 @@ def test_landgrid():
     assert grid.gpis[0] == 1035360
     assert grid.activegpis[0] == 999942
     assert np.unique(grid.get_grid_points()[3]).size == 1001
+

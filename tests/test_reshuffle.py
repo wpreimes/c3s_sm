@@ -29,7 +29,7 @@ def test_parse_filename():
 
 
 
-def test_reshuffle_TCDR_daily():
+def test_reshuffle_TCDR_daily_multiple_params():
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "c3s_sm-test-data", "img2ts", "TCDR", "active")
     startdate = "1991-08-05"
@@ -45,7 +45,7 @@ def test_reshuffle_TCDR_daily():
 
     assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 1002
 
-    ds = C3STs(ts_path, remove_nans=True)
+    ds = C3STs(ts_path, remove_nans=True, parameters=['sm', 'sm_uncertainty'], ioclass_kws={'read_bulk': True, 'read_dates': False})
     ts = ds.read(75.625, 14.625)
     ts_sm_values_should = np.array([66.0677, np.nan, 80.7060, 70.5648], dtype=np.float32)
     nptest.assert_allclose(ts['sm'].values, ts_sm_values_should, rtol=1e-5)
@@ -66,12 +66,12 @@ def test_reshuffle_TCDR_daily():
 
     ds.close()
 
-def test_reshuffle_ICDR_monthly():
+def test_reshuffle_ICDR_monthly_single_param():
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "c3s_sm-test-data", "img2ts", "ICDR", "combined")
     startdate = "2018-05-01"
     enddate = "2018-08-01"
-    parameters = ['--parameters', "sm", "sensor"]
+    parameters = ['--parameters', "sm"] #, "sensor"]
 
     land_points = 'False'
 
@@ -83,14 +83,14 @@ def test_reshuffle_ICDR_monthly():
 
     assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 2593
 
-    ds = C3STs(ts_path, remove_nans=True)
+    ds = C3STs(ts_path, remove_nans=True, parameters=['sm'], ioclass_kws={'read_bulk': True, 'read_dates': False})
     ts = ds.read(-159.625, 65.875)
     ts_sm_values_should = np.array([0.23628984, 0.33424062, np.nan, 0.26261818], dtype=np.float32)
 
     nptest.assert_allclose(ts['sm'].values, ts_sm_values_should, rtol=1e-5)
 
-    ts_sensor_values_should = np.array([768, 768, 768, 768 ], dtype=np.float32)
-    nptest.assert_allclose(ts['sensor'].values, ts_sensor_values_should,rtol=1e-5)
+    #ts_sensor_values_should = np.array([768, 768, 768, 768 ], dtype=np.float32)
+    #nptest.assert_allclose(ts['sensor'].values, ts_sensor_values_should,rtol=1e-5)
 
     ds.close()
 
@@ -98,6 +98,6 @@ def test_reshuffle_ICDR_monthly():
 
 if __name__ == '__main__':
     test_parse_filename()
-    test_reshuffle_TCDR_daily()
-    test_reshuffle_ICDR_monthly()
+    test_reshuffle_ICDR_monthly_single_param()
+    test_reshuffle_TCDR_daily_multiple_params()
 
