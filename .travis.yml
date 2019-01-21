@@ -37,10 +37,14 @@ install:
   - conda env update -f environment.yml
 
   - python setup.py develop
-  - if [ "$downgrade_libnetcdf"=true]; then conda install -c conda-forge libnetcdf==4.3.3.1 --yes; fi
+  - if [[ "$downgrade_libnetcdf"=true]]; then
+      conda install -c conda-forge libnetcdf==4.3.3.1 --yes;
+    fi
 
-
+  - conda list
   - pip list
+  - which pip
+  - which python
 
 
 script:
