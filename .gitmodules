@@ -1,0 +1,3 @@
+[submodule "tests/c3s_sm-test-data"]
+	path = tests/c3s_sm-test-data
+	url = https://www.geo.tuwien.ac.at/downloads/gittd/c3s_sm-test-data.git/
