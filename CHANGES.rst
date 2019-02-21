@@ -4,7 +4,7 @@ Changelog
 
 Version 0.X (unreleased)
 ========================
--
+- Change test data submodule, to point to GEO file server
 
 Version 0.1
 ========================
