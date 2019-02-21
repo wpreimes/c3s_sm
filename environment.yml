@@ -11,3 +11,4 @@ dependencies:
     - repurpose
     - parse
     - smecv_grid
+    - more_itertools
