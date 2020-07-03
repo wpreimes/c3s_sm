@@ -4,7 +4,9 @@ Changelog
 
 Version 0.X (unreleased)
 ========================
-- Change test data submodule, to point to GEO file server
+- Update pyscaffold structure
+- Add automatic pypi deploy
+- Add option to remove time zone info from time series
 
 Version 0.1
 ========================

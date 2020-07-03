@@ -1,4 +1,6 @@
 dist: xenial
+os:
+  - linux
 language: python
 sudo: false
 addons:
@@ -10,26 +12,21 @@ notifications:
   email: false
 python:
   # We don't actually use the Travis Python, but this keeps it organized.
-  - "2.7"
   - "3.6"
   - "3.7"
+  - "3.8"
 install:
   # You may want to periodically update this, although the conda update
   # conda line below will keep everything up-to-date.  We do this
   # conditionally because it saves us some downloading if the version is
   # the same.
-  - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-      wget http://repo.continuum.io/miniconda/Miniconda2-latest-Linux-x86_64.sh -O miniconda.sh;
-    else
-      wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
-    fi
+  - wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
   - echo $downgrade_libnetcdf
   - bash miniconda.sh -b -p $HOME/miniconda
   - export PATH="$HOME/miniconda/bin:$PATH"
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
   - conda update -n base conda
-
 
   - conda create -n c3s_sm python=${TRAVIS_PYTHON_VERSION}
   - source activate c3s_sm
@@ -52,3 +49,18 @@ after_success:
   - conda list
   - pip install coveralls
   - coveralls
+
+deploy:
+  provider: pypi
+  # better than hiding the token would be to encrypt it with travis...
+  username: __token__
+  password: $PYPI_TOKEN
+  skip_existing: true
+  on:
+    repo: TUW-GEO/c3s_sm
+    tags: true
+after_deploy:
+  # try install as in docs
+  - conda create -q -n c3s_sm_deploy --yes -c conda-forge pandas netcdf4 pyresample
+  - source activate c3s_sm_deploy
+  - pip install c3s_sm

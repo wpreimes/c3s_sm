@@ -55,7 +55,8 @@ class C3STs(GriddedNcOrthoMultiTs):
     Module for reading C3S time series in netcdf format.
     """
 
-    def __init__(self, ts_path, grid_path=None, remove_nans=False, **kwargs):
+    def __init__(self, ts_path, grid_path=None, remove_nans=False, drop_tz=True,
+                 **kwargs):
 
         '''
         Class for reading C3S SM time series after reshuffling.
@@ -70,6 +71,8 @@ class C3STs(GriddedNcOrthoMultiTs):
             ts_path.
         remove_nans : bool, optional (default: False)
             Replace -9999 with np.nan in time series
+        trop_tz: bool, optional (default: True)
+            Drop time zone information from time series
 
         Optional keyword arguments that are passed to the Gridded Base:
         ------------------------------------------------------------------------
@@ -91,6 +94,7 @@ class C3STs(GriddedNcOrthoMultiTs):
                         request useable for bulk reading because currently the netCDF
                         num2date routine is very slow for big datasets
         '''
+
         self.remove_nans = remove_nans
 
         if grid_path is None:
@@ -98,6 +102,7 @@ class C3STs(GriddedNcOrthoMultiTs):
 
         grid = load_grid(grid_path)
 
+        self.drop_tz = drop_tz
         super(C3STs, self).__init__(ts_path, grid=grid, **kwargs)
 
 
@@ -112,7 +117,11 @@ class C3STs(GriddedNcOrthoMultiTs):
         if self.remove_nans:
             ts = ts.replace(-9999.0000, np.nan)
 
-        ts.index = ts.index.tz_localize('UTC')
+        if not self.drop_tz:
+            ts.index = ts.index.tz_localize('UTC')
+        else:
+            if (hasattr(ts.index, 'tz') and (ts.index.tz is not None)):
+                ts.index = ts.index.tz_convert(None)
 
         return ts
 
@@ -350,8 +359,4 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
             timestamps.append(next(timestamps[-1]))
 
         return timestamps
-
-
-
-
 
