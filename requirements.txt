@@ -8,7 +8,6 @@ pyresample
 netCDF4
 repurpose
 pynetcf
-repurpose
 parse
 smecv_grid
 more_itertools
