@@ -42,23 +42,21 @@ from pynetcf.time_series import GriddedNcOrthoMultiTs
 from datetime import datetime
 from parse import parse
 from c3s_sm.grid import C3SCellGrid, C3SLandGrid
+from collections import OrderedDict
 
-
-def c3s_filename_template():
-    # this function can be used in case the filename changes at some point.
-    return '{product}-SOILMOISTURE-L3S-{data_type}-{sensor_type}-{temp_res}-' \
+c3s_filename_template = \
            '{datetime}000000-{sub_prod}-{version}.{sub_version}.nc'
-
 
 class C3STs(GriddedNcOrthoMultiTs):
     """
     Module for reading C3S time series in netcdf format.
     """
+    _t0_ref = ('t0', datetime(1970,1,1,0,0,0))
 
-    def __init__(self, ts_path, grid_path=None, remove_nans=False, drop_tz=True,
+    def __init__(self, ts_path, grid_path=None, index_add_time=False, drop_tz=True,
                  **kwargs):
 
-        '''
+        """
         Class for reading C3S SM time series after reshuffling.
 
         Parameters
@@ -69,10 +67,11 @@ class C3STs(GriddedNcOrthoMultiTs):
             Path to grid file, that is used to organize the location of time
             series to read. If None is passed, grid.nc is searched for in the
             ts_path.
-        remove_nans : bool, optional (default: False)
-            Replace -9999 with np.nan in time series
-        trop_tz: bool, optional (default: True)
-            Drop time zone information from time series
+        index_add_time : bool, optional (default: False)
+            Add time stamps to the time series index. Needs the variable t0
+            from the netcdf files.
+        drop_tz : bool, optional (default: True)
+            Remove any time zone information from the data frame
 
         Optional keyword arguments that are passed to the Gridded Base:
         ------------------------------------------------------------------------
@@ -93,17 +92,17 @@ class C3STs(GriddedNcOrthoMultiTs):
                         if false dates will not be read automatically but only on specific
                         request useable for bulk reading because currently the netCDF
                         num2date routine is very slow for big datasets
-        '''
-
-        self.remove_nans = remove_nans
+        """
 
         if grid_path is None:
             grid_path = os.path.join(ts_path, "grid.nc")
 
         grid = load_grid(grid_path)
 
-        self.drop_tz = drop_tz
         super(C3STs, self).__init__(ts_path, grid=grid, **kwargs)
+
+        self.index_add_time = index_add_time
+        self.drop_tz = drop_tz
 
 
     def _read_gp(self, gpi, **kwargs):
@@ -114,28 +113,32 @@ class C3STs(GriddedNcOrthoMultiTs):
         if ts is None:
             return None
 
-        if self.remove_nans:
-            ts = ts.replace(-9999.0000, np.nan)
-
         if not self.drop_tz:
             ts.index = ts.index.tz_localize('UTC')
         else:
             if (hasattr(ts.index, 'tz') and (ts.index.tz is not None)):
                 ts.index = ts.index.tz_convert(None)
+        
+        ts = ts.replace(-9999.0000, np.nan)
 
         return ts
 
-
-    def read_cell(self, cell, var='sm'):
+    def read_cell_file(self, cell, var='sm'):
         """
-        Read all time series for a single variable in the selected cell.
+        Read all data for a single variable from a file, fastest option but
+        does not consider any flags etc but simply extracts the passed variable.
 
         Parameters
+        ----------
+        cell : int
+            Cell / filename to read.
+        var : str
+            Name of the variable to extract from the cellfile.
+
+        Returns
         -------
-        cell: int
-            Cell number as in the c3s grid
-        var : str, optional (default: 'sm')
-            Name of the variable to read.
+        data : np.array
+            Data for var in cell
         """
 
         file_path = os.path.join(self.path, '{}.nc'.format("%04d" % (cell,)))
@@ -151,19 +154,77 @@ class C3STs(GriddedNcOrthoMultiTs):
             variable = ncfile.variables[var][:]
             variable = np.transpose(variable)
             data = pd.DataFrame(variable, columns=loc_id, index=time)
-            if self.remove_nans:
-                data = data.replace(-9999.0000, np.nan)
+            data = data.replace(-9999.0000, np.nan)
             return data
 
+    def read_cells(self, cells):
+        """
+        Iterate over all points in a cell and retrieve multiple variables.
+
+        Parameters
+        ----------
+        cells: list
+            List of cells. All points in the cell are read, each point
+            is a dataframe.
+
+        Returns
+        -------
+        points_in_cell_data : OrderedDict
+            Dict where each key is a gpi and each value a data frame of all
+            selected variables.
+        """
+
+        cell_data = OrderedDict()
+        gpis, lons, lats = self.grid.grid_points_for_cell(list(cells))
+        for gpi, lon, lat in zip(gpis, lons, lats):
+            df = self.read(lon, lat)
+            cell_data[gpi] = df
+        return cell_data
+
+    def _add_time(self, df:pd.DataFrame) -> pd.DataFrame:
+        """ Add time stamps to time series index """
+        t0 = self._t0_ref[0]
+        if t0 in df.columns:
+            dt = pd.to_timedelta(df[t0], unit='d')
+            df['_datetime'] = pd.Series(index=df.index, data=self._t0_ref[1]) + dt
+            df['_date'] = df.index
+            df = df.set_index('_datetime')
+            df = df[df.index.notnull()]
+        else:
+            raise ValueError('Variable t0 was not found, cannot add time stamps')
+
+        return df
+
+    def read(self, *args, **kwargs):
+        """
+         Read time series by grid point index, or by lonlat. Convert columns to
+         ints if possible (if there are no Nans in it).
+         Parameters
+         ----------
+         lon: float
+             Location longitude
+         lat : float
+             Location latitude
+         .. OR
+         gpi : int
+             Grid point Index
+         Returns
+         -------
+         df : pd.DataFrame
+             Time Series data at the selected location
+         """
+        ts = super(C3STs, self).read(*args, **kwargs)
+        if self.index_add_time:
+            ts = self._add_time(ts)
+        return ts
 
 class C3SImg(ImageBase):
     """
     Class to read a single C3S image (for one time stamp)
     """
-    def __init__(self, filename, parameters='sm', mode='r', subgrid=None,
-                 array_1D=False):
-        # todo: get rid of mode?
-        '''
+    def __init__(self, filename, parameters='sm', mode='r',
+                 grid=C3SCellGrid(None), array_1D=False):
+        """
         Parameters
         ----------
         filename : str
@@ -173,10 +234,13 @@ class C3SImg(ImageBase):
             If None are passed, all are read.
         mode : str, optional (default: 'r')
             Netcdf file mode, choosing something different to r may delete data.
+        grid : pygeogrids.CellGrid, optional (default: C3SCellGrid)
+            Grid that the image data is organised on, by default the global SMECV
+            grid is used.
         array_1D : bool, optional (default: False)
             Read image as one dimensional array, instead of a 2D array
             Use this when using a subgrid.
-        '''
+        """
 
         super(C3SImg, self).__init__(filename, mode=mode)
 
@@ -184,7 +248,7 @@ class C3SImg(ImageBase):
             parameters = [parameters]
 
         self.parameters = parameters
-        self.grid = C3SCellGrid() if not subgrid else subgrid
+        self.grid = grid
         self.array_1D = array_1D
 
     def read(self, timestamp=None):
@@ -259,9 +323,12 @@ class C3SImg(ImageBase):
 
 
 class C3S_Nc_Img_Stack(MultiTemporalImageBase):
-    '''Class for reading multiple images and iterate over them. '''
+    """
+    Class for reading multiple images and iterate over them.
+    """
+
     def __init__(self, data_path, parameters='sm', subgrid=None, array_1D=False):
-        '''
+        """
         Parameters
         ----------
         data_path : str
@@ -272,22 +339,18 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
             Subset of the image to read
         array_1D : bool, optional (default: False)
             Flatten the read image to a 1D array instead of a 2D array
-        '''
+        """
 
         self.data_path = data_path
         ioclass_kwargs = {'parameters': parameters,
                           'subgrid' : subgrid,
                           'array_1D': array_1D}
 
-        template = c3s_filename_template()
+        template = c3s_filename_template
         self.fname_args = self._parse_filename(template)
         filename_templ = template.format(**self.fname_args)
 
-        # todo: is this fixed? Daily data is organised differently than M and 10D?
-        if self.fname_args['temp_res'] == 'DAILY':
-            subpath_templ = ['%Y']
-        else:
-            subpath_templ = None
+        subpath_templ = ['%Y']
 
         super(C3S_Nc_Img_Stack, self).__init__(path=data_path, ioclass=C3SImg,
                                                fname_templ=filename_templ ,
@@ -297,7 +360,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
                                                ioclass_kws=ioclass_kwargs)
 
     def _parse_filename(self, template):
-        '''
+        """
         Search a file in the passed directory and use the filename template to
         to read settings.
 
@@ -310,7 +373,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
         -------
         parse_result : parse.Result
             Parsed content of filename string from filename template.
-        '''
+        """
 
         for curr, subdirs, files in os.walk(self.data_path):
             for f in files:
@@ -324,10 +387,16 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
 
         raise IOError('No file name in passed directory fits to template')
 
-
+    @staticmethod
+    def next_dekade(date:datetime) -> datetime:
+        next = date + relativedelta(days=10)
+        if next.month != date.month or next.day == 31:
+            return date + relativedelta(day=1, months=1)
+        else:
+            return next
 
     def tstamps_for_daterange(self, start_date, end_date):
-        '''
+        """
         Return dates in the passed period, with respect to the temp resolution
         of the images in the path.
 
@@ -343,14 +412,16 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
         timestamps : list
             list of datetime objects of each available image between
             start_date and end_date
-        '''
+        """
 
         if self.fname_args['temp_res'] == 'MONTHLY':
             next = lambda date : date + relativedelta(months=1)
         elif self.fname_args['temp_res'] == 'DAILY':
             next = lambda date : date + relativedelta(days=1)
         elif self.fname_args['temp_res'] == 'DEKADAL':
-            next = lambda date : date + relativedelta(days=10)
+            if start_date.day not in [1,11,21]:
+                raise ValueError(f'Invalid day for C3S dekadal product: {start_date.day}')
+            next = self.next_dekade
         else:
             raise NotImplementedError
 
@@ -360,3 +431,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
 
         return timestamps
 
+
+
+if __name__ == '__main__':
+    C3SImg()
