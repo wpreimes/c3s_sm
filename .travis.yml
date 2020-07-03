@@ -1,4 +1,6 @@
 dist: xenial
+os:
+  - linux
 language: python
 sudo: false
 addons:
@@ -26,7 +28,6 @@ install:
   - conda config --set always_yes yes --set changeps1 no
   - conda update -n base conda
 
-
   - conda create -n c3s_sm python=${TRAVIS_PYTHON_VERSION}
   - source activate c3s_sm
   - conda env update -f environment.yml
@@ -48,3 +49,18 @@ after_success:
   - conda list
   - pip install coveralls
   - coveralls
+
+deploy:
+  provider: pypi
+  # better than hiding the token would be to encrypt it with travis...
+  username: __token__
+  password: $PYPI_TOKEN
+  skip_existing: true
+  on:
+    repo: TUW-GEO/c3s_sm
+    tags: true
+after_deploy:
+  # try install as in docs
+  - conda create -q -n c3s_sm_deploy --yes -c conda-forge pandas netcdf4 pyresample
+  - source activate c3s_sm_deploy
+  - pip install c3s_sm
