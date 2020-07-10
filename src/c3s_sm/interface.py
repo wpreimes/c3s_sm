@@ -210,7 +210,7 @@ class C3STs(GriddedNcOrthoMultiTs):
              Grid point Index
          Returns
          -------
-         df : pd.DataFrame
+         _df : pd.DataFrame
              Time Series data at the selected location
          """
         ts = super(C3STs, self).read(*args, **kwargs)
