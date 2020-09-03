@@ -133,13 +133,6 @@ def test_1Dreading():
 
     assert(image.metadata['sm']['long_name'] == 'Volumetric Soil Moisture')
 
-
-
-
-
-
-
-
 if __name__ == '__main__':
     test_1Dreading()
     test_C33Ts_tcdr_combined_daily()

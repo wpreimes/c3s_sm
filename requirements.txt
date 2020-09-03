@@ -9,5 +9,5 @@ netCDF4
 repurpose
 pynetcf
 parse
-smecv_grid
+smecv_grid>=0.3
 more_itertools

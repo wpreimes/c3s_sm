@@ -10,10 +10,8 @@ import argparse
 from datetime import datetime
 
 from repurpose.img2ts import Img2Ts
-from c3s_sm.interface import C3S_Nc_Img_Stack, c3s_filename_template
-from c3s_sm.grid import C3SLandGrid, C3SCellGrid
-import c3s_sm.metadata as metadata
-from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
+from c3s_sm.interface import C3SDs, c3s_filename_template
+from c3s_sm.grid import C3SCellGrid
 from pygeogrids.grids import BasicGrid
 
 import numpy as np
@@ -82,8 +80,7 @@ def parse_filename(data_dir):
 
 
 def reshuffle(input_root, outputpath, startdate, enddate,
-              parameters, land_points=True,
-              imgbuffer=50):
+              imgbuffer=50, **ds_kwargs):
     """
     Reshuffle method applied to C3S data.
     Parameters
@@ -104,27 +101,12 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     imgbuffer: int, optional (default: 50)
         How many images to read at once before writing time series.
     """
+    if 'grid' not in ds_kwargs.keys():
+        ds_kwargs['grid'] = None
+    if 'parameters' not in ds_kwargs.keys():
+        ds_kwargs['parameters'] = None
 
-    if land_points:
-        grid = C3SLandGrid()
-    else:
-        grid = C3SCellGrid()
-
-    gpis, lons, lats, cells = grid.get_grid_points()
-    grid_vars = {'gpis': gpis, 'lons':lons, 'lats':lats}
-    # repurpose cannot handle masked arrays
-    for k, v in grid_vars.items(): # type v: np.ma.MaskedArray
-        if isinstance(v, np.ma.MaskedArray):
-            grid_vars[k] = v.filled()
-
-    grid = BasicGrid(lon=grid_vars['lons'], lat=grid_vars['lats'], gpis=grid_vars['gpis']).to_cell_grid(5.)
-
-    if parameters is None:
-        file_args, file_vars = parse_filename(input_root)
-        parameters = [p for p in file_vars if p not in ['lat', 'lon', 'time']]
-
-    input_dataset = C3S_Nc_Img_Stack(data_path=input_root, parameters=parameters,
-                                     subgrid=grid, array_1D=True)
+    input_dataset = C3SDs(data_path=input_root, array_1D=True, **ds_kwargs)
 
     prod_args = input_dataset.fname_args
 
@@ -196,11 +178,18 @@ def parse_args(args):
                         nargs="+",
                         help=("Parameters to reshuffle into time series format. "
                               "E.g. sm for creating soil moisture time series."
-                              "If None are passed, all variables from the first image file in the path are used."))
+                              "If None are passed, all variables from the first image "
+                              "file in dataset_root are used."))
 
     parser.add_argument("--land_points", type=str2bool, default='False',
                         help=("Set True to convert only land points as defined"
                               " in the C3s land mask (faster and less/smaller files)"))
+
+    parser.add_argument("--bbox", type=float, default=None, nargs=4,
+                        help=("min_lon min_lat max_lon max_lat. "
+                              "Bounding Box (lower left and upper right corner) "
+                              "of subset area of global images to reshuffle (WGS84). "
+                              "Default: None"))
 
     parser.add_argument("--imgbuffer", type=int, default=50,
                         help=("How many images to read at once. Bigger "
@@ -210,10 +199,13 @@ def parse_args(args):
     args = parser.parse_args(args)
     # set defaults that can not be handled by argparse
 
-    print("Converting data from {} to"
-          " {} into folder {}.".format(args.start.isoformat(),
-                                      args.end.isoformat(),
-                                      args.timeseries_root))
+    print(f"Converting C3S SM data from {args.dataset_root} between "
+          f"{args.start.isoformat()} and {args.end.isoformat()} "
+          f"into folder {args.timeseries_root}. ")
+    if args.land_points is True:
+        print(f"Only land points are reshuffled.")
+    if args.bbox is not None:
+        print(f"Bounding Box used: {str(args.bbox)}")
 
     return args
 
@@ -228,13 +220,20 @@ def main(args):
     """
     args = parse_args(args)
 
+    subset_flag = 'land' if args.landpoints is True else None
+    grid = C3SCellGrid(subset_flag=subset_flag)
+    if args.bbox is not None:
+        grid = grid.subgrid_from_bbox(*args.bbox)
+
+    ds_kwargs = {'grid': grid,
+                 'parameters': args.parameters}
+
     reshuffle(args.dataset_root,
               args.timeseries_root,
               args.start,
               args.end,
-              args.parameters,
-              land_points=args.land_points,
-              imgbuffer=args.imgbuffer)
+              imgbuffer=args.imgbuffer,
+              **ds_kwargs)
 
 
 

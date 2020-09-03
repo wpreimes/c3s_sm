@@ -279,6 +279,9 @@ class BitFlagShuffler(object):
 
 
 class ProductBitFlag(BitFlagShuffler):
+    """ Special case of BitFlagShuffler that allows ignoring certain bits that are
+    only relevant for the c3s active/passive products (e.g. act/pas sensors) """
+
     def __init__(self, *args, active_bits=None, passive_bits=None):
         """
         Parameters
@@ -343,34 +346,3 @@ class ProductBitFlag(BitFlagShuffler):
         flags = super(ProductBitFlag, self).get_flags(*args, **kwargs)
 
         return flags
-
-
-class ProdVarAttr(object):
-    """
-    Store/access variable attributes for combined, active, passive separately
-    """
-
-    def __init__(self, name:str, active_attrs:dict, combined_attrs:dict,
-                 passive_attrs:dict):
-
-        self.name = name
-        self.attrs = {'active': active_attrs, 'combined': combined_attrs,
-                      'passive': passive_attrs}
-
-    def get_sensor_attrs(self, sensor_prod):
-        """
-        Get attributes for combined, active or passive sensors
-
-        Parameters
-        ----------
-        sensor_prod : {'combined', 'active', 'passive'}
-            Sensor product
-
-        Returns
-        -------
-        name : str
-            Variable Name
-        attrs : OrderedDict
-            Variable Attributes
-        """
-        return self.name, self.attrs[sensor_prod]

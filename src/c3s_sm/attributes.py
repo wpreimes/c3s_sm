@@ -2,15 +2,47 @@
 
 """
 This module defines the variable attributes for all C3S SM versions & products
-
 """
-from c3s_sm.bitflags import ProductBitFlag, ProdVarAttr
+
+from c3s_sm.bitflags import ProductBitFlag
 from collections import OrderedDict
 import numpy as np
 from netCDF4 import date2num
 from datetime import datetime
 
-class v201706_sm(ProdVarAttr):
+class ProductVariableAttributes(object):
+    """
+    Store/access variable attributes for combined, active, passive separately.
+    Basically this is just a dict of dicts with a name attached.
+    """
+
+    def __init__(self, name:str, active_attrs:dict, combined_attrs:dict,
+                 passive_attrs:dict):
+
+        self.name = name
+        self.attrs = {'active': active_attrs, 'combined': combined_attrs,
+                      'passive': passive_attrs}
+
+    def get_sensor_attrs(self, sensor_prod):
+        """
+        Get attributes for combined, active or passive sensors
+
+        Parameters
+        ----------
+        sensor_prod : {'combined', 'active', 'passive'}
+            Sensor product
+
+        Returns
+        -------
+        name : str
+            Variable Name
+        attrs : OrderedDict
+            Variable Attributes
+        """
+        return self.name, self.attrs[sensor_prod]
+
+
+class v201706_sm(ProductVariableAttributes):
     # Describes sm attributes of v201706 version, probably won't change in future
 
     def __init__(self):
@@ -28,7 +60,7 @@ class v201706_sm(ProdVarAttr):
         super(v201706_sm, self).__init__('sm', a_attrs, cp_attrs, cp_attrs)
 
 
-class v201706_sm_uncertainty(ProdVarAttr):
+class v201706_sm_uncertainty(ProductVariableAttributes):
     # Describes sm_uncertainty attributes of v201706, probably won't change in future
 
     def __init__(self):
@@ -51,7 +83,7 @@ class v201706_sm_uncertainty(ProdVarAttr):
             'sm_uncertainty', a_attrs, cp_attrs, cp_attrs)
 
 
-class v201706_t0(ProdVarAttr):
+class v201706_t0(ProductVariableAttributes):
     # Describes t0 attributes of v201706, probably won't change in future
 
     def __init__(self, base_date:datetime=datetime(1970,1,1,0,0)):
@@ -73,7 +105,7 @@ class v201706_t0(ProdVarAttr):
             'sm_uncertainty', acp_attrs, acp_attrs, acp_attrs)
 
 
-class v201706_dnflag(ProdVarAttr):
+class v201706_dnflag(ProductVariableAttributes):
     # Describes dnflag attributes of v201706, probably won't change in future
 
     def __init__(self):
@@ -96,7 +128,7 @@ class v201706_dnflag(ProdVarAttr):
             'dnflag', acp_attrs, acp_attrs, acp_attrs)
 
 
-class v201706_mode(ProdVarAttr):
+class v201706_mode(ProductVariableAttributes):
     # Describes mode attributes of v201706, probably won't change in future
 
     def __init__(self):
@@ -117,7 +149,7 @@ class v201706_mode(ProdVarAttr):
         super(v201706_mode, self).__init__('mode', acp_attrs, acp_attrs, acp_attrs)
 
 
-class v201706_flag(ProdVarAttr):
+class v201706_flag(ProductVariableAttributes):
     # Describes the quality flag attributes of v201706, might change in future
 
     def __init__(self):
@@ -148,7 +180,7 @@ class v201706_flag(ProdVarAttr):
         super(v201706_flag, self).__init__('flag', acp_attrs, acp_attrs, acp_attrs)
 
 
-class v201706_sensor(ProdVarAttr):
+class v201706_sensor(ProductVariableAttributes):
     # Describes the sensors flag attributes of v201706, will change in future
 
     def __init__(self):
@@ -181,7 +213,7 @@ class v201706_sensor(ProdVarAttr):
             flags.get_prod_flags('passive', **kwargs))
 
 
-class v201706_freqbandId(ProdVarAttr):
+class v201706_freqbandId(ProductVariableAttributes):
     # Describes the frequency flag attributes of v201706, might change in future
 
     def __init__(self):
