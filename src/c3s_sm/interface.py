@@ -41,8 +41,7 @@ from netCDF4 import Dataset
 from pynetcf.time_series import GriddedNcOrthoMultiTs
 from datetime import datetime
 from parse import parse
-from c3s_sm.grid import C3SCellGrid, C3SLandGrid
-
+from c3s_sm.grid import C3SCellGrid
 
 def c3s_filename_template():
     # this function can be used in case the filename changes at some point.
@@ -221,7 +220,7 @@ class C3SImg(ImageBase):
             for attr in variable.ncattrs():
                 param_metadata.update({str(attr): getattr(variable, attr)})
 
-            param_data = np.flipud(variable[0][:].filled(fill_value=np.nan)).flatten()
+            param_data = np.flipud(variable[0][:].filled()).flatten()
 
             param_img[str(param)] = param_data[self.grid.activegpis]
             img_meta[param] = param_metadata
