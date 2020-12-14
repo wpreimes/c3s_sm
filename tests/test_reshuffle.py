@@ -27,9 +27,6 @@ def test_parse_filename():
 
     assert file_vars == [u'lat', u'lon', u'time', u'nobs', u'sensor', u'freqbandID', u'sm']
 
-
-
-
 def test_reshuffle_TCDR_daily_multiple_params():
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "c3s_sm-test-data", "img2ts", "TCDR", "active")

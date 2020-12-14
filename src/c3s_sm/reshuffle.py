@@ -144,14 +144,11 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     ts_attributes = {}
     global_attributes = attrs.global_attr
 
-    # todo: attrs for all vars or only for the ones that TS were created for.
     for var in parameters:
         ts_attributes.update(attrs.ts_attributes[var])
 
-
     if not os.path.exists(outputpath):
         os.makedirs(outputpath)
-
 
     reshuffler = Img2Ts(input_dataset=input_dataset, outputpath=outputpath,
                         startdate=startdate, enddate=enddate, input_grid=grid,
@@ -241,15 +238,3 @@ def main(args):
 def run():
     main(sys.argv[1:])
 
-if __name__ == '__main__':
-
-
-    cmd = [r'C:\Temp\tcdr\active_daily', r'C:\Temp\tcdr\ts',
-           '1991-08-05', '1991-08-10', '--land_points', 'True']
-    main(cmd)
-
-    from interface import C3STs
-
-    ds = C3STs(r'C:\Temp\tcdr\ts')
-    ds.read(47.875, 7.875)
-    run()
