@@ -244,3 +244,11 @@ class C3S_SM_TS_Attrs_v201812(C3S_SM_TS_Attrs):
         version = type(self).__name__.split('_')[-1]
         super(C3S_SM_TS_Attrs_v201812, self).__init__(product_sensor_type, version,
                                                       sub_version)
+
+class C3S_SM_TS_Attrs_v201912(C3S_SM_TS_Attrs):
+    # Example for a version specific attribute class, last part defines version
+    def __init__(self, product_sensor_type, sub_version='.0.0'):
+
+        version = type(self).__name__.split('_')[-1]
+        super(C3S_SM_TS_Attrs_v201912, self).__init__(product_sensor_type, version,
+                                                      sub_version)
