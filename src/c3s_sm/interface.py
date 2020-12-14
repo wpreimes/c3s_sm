@@ -221,7 +221,7 @@ class C3SImg(ImageBase):
             for attr in variable.ncattrs():
                 param_metadata.update({str(attr): getattr(variable, attr)})
 
-            param_data = np.flipud(variable[0][:].filled()).flatten()
+            param_data = np.flipud(variable[0][:].filled(fill_value=np.nan)).flatten()
 
             param_img[str(param)] = param_data[self.grid.activegpis]
             img_meta[param] = param_metadata
