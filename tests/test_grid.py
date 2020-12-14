@@ -38,3 +38,6 @@ def test_landgrid():
     assert grid.activegpis[0] == 999942
     assert np.unique(grid.get_grid_points()[3]).size == 1001
 
+if __name__ == '__main__':
+    test_C3SCellGrid()
+    test_landgrid()

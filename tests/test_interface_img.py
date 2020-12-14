@@ -135,11 +135,6 @@ def test_1Dreading():
 
 
 
-
-
-
-
-
 if __name__ == '__main__':
     test_1Dreading()
     test_C33Ts_tcdr_combined_daily()

@@ -21,8 +21,8 @@
 # SOFTWARE.
 
 '''
-Readers for the C3S soil moisture proudct daily, dekadal (10-daily) and monthly images as well
-as for timeseries generated using this module
+Readers for the C3S soil moisture proudct daily, dekadal (10-daily) and monthly
+images as well as for timeseries generated using this module
 '''
 
 import pandas as pd
