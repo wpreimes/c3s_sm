@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from c3s_sm.grid import C3SCellGrid
-from c3s_sm.grid import C3SLandGrid
+from smecv_grid.grid import SMECV_Grid_v052
 import numpy as np
 
 
 def test_C3SCellGrid():
-    grid = C3SCellGrid()
+    grid = SMECV_Grid_v052(None)
     gp, dist = grid.find_nearest_gpi(75.625, 14.625)
     assert gp == 602942
     lon, lat = grid.gpi2lonlat(602942)
@@ -19,10 +18,11 @@ def test_C3SCellGrid():
     assert grid.gpis.size == 1036800
     assert grid.gpis[0] == 1035360
     assert np.unique(grid.get_grid_points()[3]).size == 2592
+    assert grid.shape == (720,1440)
 
 
 def test_landgrid():
-    grid = C3SLandGrid()
+    grid = SMECV_Grid_v052('land')
     gp, dist = grid.find_nearest_gpi(75.625, 14.625)
     assert gp == 602942
     lon, lat = grid.gpi2lonlat(602942)
@@ -37,7 +37,3 @@ def test_landgrid():
     assert grid.gpis[0] == 1035360
     assert grid.activegpis[0] == 999942
     assert np.unique(grid.get_grid_points()[3]).size == 1001
-
-if __name__ == '__main__':
-    test_C3SCellGrid()
-    test_landgrid()
