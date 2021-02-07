@@ -3,7 +3,7 @@
 from c3s_sm.interface import C3SImg
 import os
 import numpy.testing as nptest
-from c3s_sm.grid import C3SLandGrid, C3SCellGrid
+from smecv_grid.grid import SMECV_Grid_v052
 
 # lat=48.125, lon=16.375
 def test_C33Ts_tcdr_combined_daily():
@@ -116,7 +116,7 @@ def test_1Dreading():
     nptest.assert_almost_equal(ref_sm, 0.360762, 5)
     assert(image.metadata['sm']['long_name'] == 'Volumetric Soil Moisture')
 
-    land_grid = C3SLandGrid()
+    land_grid = SMECV_Grid_v052('land')
 
     ds = C3SImg(file, mode='r', parameters='sm', array_1D=True, subgrid=land_grid)
     image = ds.read()

@@ -10,11 +10,11 @@ import argparse
 from datetime import datetime
 
 from repurpose.img2ts import Img2Ts
-from c3s_sm.interface import C3S_Nc_Img_Stack, c3s_filename_template
-from c3s_sm.grid import C3SLandGrid, C3SCellGrid
+from c3s_sm.interface import C3S_Nc_Img_Stack, fntempl
 import c3s_sm.metadata as metadata
 from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
 from pygeogrids.grids import BasicGrid
+from smecv_grid.grid import SMECV_Grid_v052
 
 import numpy as np
 
@@ -31,6 +31,7 @@ def mkdate(datestring):
     ----------
     datestring : str
         Date string.
+
     Returns
     -------
     datestr : datetime
@@ -49,7 +50,7 @@ def str2bool(val):
 
 
 def parse_filename(data_dir):
-    '''
+    """
     Take the first file in the passed directory and use its file name to
     retrieve the product type, version number and variables in the file.
 
@@ -64,12 +65,11 @@ def parse_filename(data_dir):
         Parsed arguments from file name
     file_vars : list
         Names of parameters in the first detected file
-    '''
-    template = c3s_filename_template()
+    """
 
     for curr, subdirs, files in os.walk(data_dir):
         for f in files:
-            file_args = parse(template, f)
+            file_args = parse(fntempl, f)
             if file_args is None:
                 continue
             else:
@@ -82,8 +82,8 @@ def parse_filename(data_dir):
 
 
 def reshuffle(input_root, outputpath, startdate, enddate,
-              parameters, land_points=True,
-              imgbuffer=50):
+              parameters=None, land_points=True,
+              imgbuffer=500):
     """
     Reshuffle method applied to C3S data.
     Parameters
@@ -96,7 +96,7 @@ def reshuffle(input_root, outputpath, startdate, enddate,
         Start date.
     enddate : datetime
         End date.
-    parameters: list
+    parameters: list, optional (default: None)
         parameters to read and convert
     land_points : bool, optional (default: True)
         Use the land grid to calculate time series on.
@@ -106,9 +106,9 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     """
 
     if land_points:
-        grid = C3SLandGrid()
+        grid = SMECV_Grid_v052('land')
     else:
-        grid = C3SCellGrid()
+        grid = SMECV_Grid_v052(None)
 
     gpis, lons, lats, cells = grid.get_grid_points()
     grid_vars = {'gpis': gpis, 'lons':lons, 'lats':lats}
@@ -117,7 +117,9 @@ def reshuffle(input_root, outputpath, startdate, enddate,
         if isinstance(v, np.ma.MaskedArray):
             grid_vars[k] = v.filled()
 
-    grid = BasicGrid(lon=grid_vars['lons'], lat=grid_vars['lats'], gpis=grid_vars['gpis']).to_cell_grid(5.)
+    grid = BasicGrid(lon=grid_vars['lons'],
+                     lat=grid_vars['lats'],
+                     gpis=grid_vars['gpis']).to_cell_grid(5.)
 
     if parameters is None:
         file_args, file_vars = parse_filename(input_root)
@@ -128,18 +130,16 @@ def reshuffle(input_root, outputpath, startdate, enddate,
 
     prod_args = input_dataset.fname_args
 
+    kwargs = {'sensor_type' : prod_args['prod'].lower(),
+              'cdr_type': prod_args['cdr'],
+              'product_temp_res':  prod_args['temp'],
+              'cls': getattr(metadata, f"C3S_SM_TS_Attrs_{prod_args['vers']}")}
 
-    kwargs = {'product_sensor_type' : prod_args['sensor_type'].lower(),
-              'sub_version' : '.' + prod_args['sub_version'],
-              'product_sub_type': prod_args['sub_prod']}
-
-    class_str = "C3S_SM_TS_Attrs_%s" % (prod_args['version'])
-    subattr = getattr(metadata, class_str)
-
-    if prod_args['temp_res'] == 'DAILY':
-        attrs = C3S_daily_tsatt_nc(subattr, **kwargs)
+    if prod_args['temp'].upper() == 'DAILY':
+        kwargs.pop('product_temp_res')
+        attrs = C3S_daily_tsatt_nc(**kwargs)
     else:
-        attrs = C3S_dekmon_tsatt_nc(subattr, **kwargs)
+        attrs = C3S_dekmon_tsatt_nc(**kwargs)
 
     ts_attributes = {}
     global_attributes = attrs.global_attr
@@ -207,10 +207,8 @@ def parse_args(args):
     args = parser.parse_args(args)
     # set defaults that can not be handled by argparse
 
-    print("Converting data from {} to"
-          " {} into folder {}.".format(args.start.isoformat(),
-                                      args.end.isoformat(),
-                                      args.timeseries_root))
+    print(f"Converting data from {args.start.isoformat()} to"
+          f" {args.end.isoformat()} into folder {args.timeseries_root}.")
 
     return args
 
@@ -237,4 +235,3 @@ def main(args):
 
 def run():
     main(sys.argv[1:])
-
