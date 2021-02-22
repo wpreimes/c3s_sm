@@ -38,14 +38,25 @@ from pygeobase.object_base import Image
 from pygeobase.io_base import ImageBase
 from pygeobase.io_base import MultiTemporalImageBase
 from pygeogrids.netcdf import load_grid
+from pygeogrids.grids import CellGrid
 
 import warnings
 from netCDF4 import Dataset
 from pynetcf.time_series import GriddedNcOrthoMultiTs
 from datetime import datetime
 from parse import parse
+import glob
+from typing import Union
 
 fntempl = "C3S-SOILMOISTURE-L3S-SSM{unit}-{prod}-{temp}-{datetime}-{cdr}-{vers}.{subvers}.nc"
+
+try:
+    import xarray as xr
+    import dask
+    from dask.diagnostics import ProgressBar
+    xr_supported = True
+except ImportError:
+    xr_supported = False
 
 
 class C3STs(GriddedNcOrthoMultiTs):
@@ -461,7 +472,128 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
 
         return timestamps
 
+class C3S_DataCube:
+    """
+    TODO
+    """
+    def __init__(self, data_root, grid=None, parameters='sm', clip_dates=None,
+                 chunks=None):
+        """
+        TODO
+        """
+        if chunks is None:
+            chunks = dict(lon=100, lat=100, time=None) # time series optimised
+
+        self.parameters = np.atleast_1d(parameters)
+        if grid is None:
+            self.grid = SMECV_Grid_v052('land')
+        else:
+            self.grid = load_grid(grid)
+
+        self.root_path = data_root
+
+        if clip_dates is not None:
+            start_date = pd.to_datetime(clip_dates[0])
+            end_date = pd.to_datetime(clip_dates[1])
+        else:
+            start_date = end_date = None
+
+        files = self._filter_files(start_date, end_date)
+
+        with ProgressBar():
+            self.ds = xr.open_mfdataset(files,
+                                        data_vars=self.parameters,
+                                        concat_dim='time',
+                                        parallel=True,
+                                        chunks=chunks)
+
+    def _filter_files(self, start_date:datetime=None, end_date:datetime=None) -> list:
+        if start_date is None:
+            start_date = datetime(1978, 1, 1)
+        if end_date is None:
+            end_date = datetime(2100,1,1)
+
+        files = []
+        allfiles = glob.glob(os.path.join(self.root_path, '**.nc'))
+
+        for fname in allfiles:
+            fn_comps = parse(fntempl, os.path.basename(fname))
+            dt = pd.to_datetime(fn_comps['datetime'])
+            if dt >= start_date and dt <= end_date:
+                files.append(fname)
+
+        return files
+
+    def _read_gp(self,
+                 gpi:int) -> pd.DataFrame:
+        lon, lat = self.grid.gpi2lonlat(gpi)
+        ts_data = self.ds.sel({'lon': lon, 'lat': lat}).to_dataframe().set_index('time')
+        return ts_data
+
+    def read_img(self,
+                 time:Union[str,datetime]) -> Image:
+        """
+
+        Parameters
+        ----------
+        time
+
+        Returns
+        -------
+
+        """
+        time = pd.to_datetime(time)
+        data = self.ds.sel({'time': time})
+
+        vars = [d for d in list(data.variables.keys()) if d not in list(data.coords.keys())]
+
+        return Image(lon=data['lon'].values,
+                     lat=data['lat'].values,
+                     data={v: data[v].values for v in vars},
+                     metadata={v: data[v].attrs for v in vars},
+                     timestamp=time,
+                     timekey='time')
+
+    def read_ts(self,
+                *args,
+                max_dist=np.inf):
+        """
+
+        Parameters
+        ----------
+        args
+        max_dist
+
+        Returns
+        -------
+
+        """
+        if len(args) == 1:
+            data = self._read_gp(args[0])
+        elif len(args) == 2:
+            gpi, dist = self.grid.find_nearest_gpi(args[0], args[1], max_dist=max_dist)
+            if len(gpi) == 0:
+                data = None
+            else:
+                data = self._read_gp(gpi)
+        else:
+            raise ValueError("Wrong number of arguments passed, either pass 1 gpi"
+                             " or two coordinates (lon, lat)")
+
+        return data
+
+    def write_stack(self, out_file, **kwargs):
+        vars = [v for v in list(self.ds.variables.keys()) if v not in self.ds.coords.keys()]
+
+        encoding = {v : {'zlib': True, 'complevel': 6} for v in vars}
+
+        with ProgressBar():
+            # todo: this breaks if it fills memory?
+            self.ds.to_netcdf(out_file, encoding=encoding, **kwargs)
+
 if __name__ == '__main__':
-    path = r"R:\Datapool\C3S\01_raw\v201812\TCDR\060_dailyImages\combined\2017\C3S-SOILMOISTURE-L3S-SSMV-COMBINED-DAILY-20170607000000-TCDR-v201812.0.0.nc"
-    ds = C3SImg(path)
-    ds.read()
+    dc = C3S_DataCube(r"D:\data-read\temp\subset",
+                      chunks={'lat': 100, 'lon': 100})
+    img = dc.read_img('2003-01-10')
+    dc.write_stack(r'C:\Temp\test\stack.nc')
+    #dc.read_ts(15,45)
