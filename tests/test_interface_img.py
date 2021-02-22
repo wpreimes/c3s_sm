@@ -5,7 +5,6 @@ import os
 import numpy.testing as nptest
 from smecv_grid.grid import SMECV_Grid_v052
 
-# lat=48.125, lon=16.375
 def test_C33Ts_tcdr_combined_daily():
     file = os.path.join(os.path.join(os.path.dirname(__file__),
                         'c3s_sm-test-data', 'img', 'TCDR', '060_dailyImages', 'combined', '2014',
