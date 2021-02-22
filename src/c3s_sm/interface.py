@@ -476,17 +476,28 @@ class C3S_DataCube:
     """
     TODO
     """
-    def __init__(self, data_root, grid=None, parameters='sm', clip_dates=None,
-                 chunks=None):
+    def __init__(self,
+                 data_root,
+                 grid=None, # todo: should use data from files.
+                 parameters='sm',
+                 clip_dates=None,
+                 chunks: Union[str, dict]='space',
+                 parallel=True,
+                 **kwargs):
         """
         TODO
         """
-        if chunks is None:
-            chunks = dict(lon=100, lat=100, time=None) # time series optimised
+        if isinstance(chunks, str):
+            if chunks.lower() == 'space':
+                chunks = dict(lon=100, lat=100, time=None)  # time series optimised
+            elif chunks.lower() == 'time':
+                chunks = dict(time=500)
+            else:
+                raise ValueError("Pass 'space' or 'time'")
 
-        self.parameters = np.atleast_1d(parameters)
+        self.parameters = list(np.atleast_1d(parameters))
         if grid is None:
-            self.grid = SMECV_Grid_v052('land')
+            self.grid = SMECV_Grid_v052(None)
         else:
             self.grid = load_grid(grid)
 
@@ -500,12 +511,21 @@ class C3S_DataCube:
 
         files = self._filter_files(start_date, end_date)
 
+        drop_vars = []
+        with Dataset(files[0]) as ds0:
+            for var in ds0.variables.keys():
+                if var not in ds0.dimensions.keys() and var not in self.parameters:
+                    drop_vars.append(var)
+
         with ProgressBar():
             self.ds = xr.open_mfdataset(files,
-                                        data_vars=self.parameters,
+                                        data_vars='minimal',
                                         concat_dim='time',
-                                        parallel=True,
-                                        chunks=chunks)
+                                        parallel=parallel,
+                                        engine='netcdf4',
+                                        chunks=chunks,
+                                        drop_variables=drop_vars,
+                                        **kwargs)
 
     def _filter_files(self, start_date:datetime=None, end_date:datetime=None) -> list:
         if start_date is None:
@@ -514,7 +534,7 @@ class C3S_DataCube:
             end_date = datetime(2100,1,1)
 
         files = []
-        allfiles = glob.glob(os.path.join(self.root_path, '**.nc'))
+        allfiles = glob.glob(os.path.join(self.root_path, '**', '**.nc'))
 
         for fname in allfiles:
             fn_comps = parse(fntempl, os.path.basename(fname))
@@ -525,23 +545,16 @@ class C3S_DataCube:
         return files
 
     def _read_gp(self,
-                 gpi:int) -> pd.DataFrame:
-        lon, lat = self.grid.gpi2lonlat(gpi)
-        ts_data = self.ds.sel({'lon': lon, 'lat': lat}).to_dataframe().set_index('time')
+                 gpi: int) -> pd.DataFrame:
+
+        # todo :load a chunk here to make ts extraction faster and keep it stored for subsequent calls.
+        row, col = self.grid.gpi2rowcol(gpi)
+        ts_data = self.ds.isel({'lat': row, 'lon': col})
+        ts_data = ts_data.drop_vars(('lat', 'lon')).to_dataframe()
         return ts_data
 
     def read_img(self,
-                 time:Union[str,datetime]) -> Image:
-        """
-
-        Parameters
-        ----------
-        time
-
-        Returns
-        -------
-
-        """
+                 time: Union[str, datetime]) -> Image:
         time = pd.to_datetime(time)
         data = self.ds.sel({'time': time})
 
@@ -557,22 +570,12 @@ class C3S_DataCube:
     def read_ts(self,
                 *args,
                 max_dist=np.inf):
-        """
 
-        Parameters
-        ----------
-        args
-        max_dist
-
-        Returns
-        -------
-
-        """
         if len(args) == 1:
             data = self._read_gp(args[0])
         elif len(args) == 2:
             gpi, dist = self.grid.find_nearest_gpi(args[0], args[1], max_dist=max_dist)
-            if len(gpi) == 0:
+            if hasattr(gpi, '__len__') and (len(gpi) == 0):
                 data = None
             else:
                 data = self._read_gp(gpi)
@@ -588,12 +591,16 @@ class C3S_DataCube:
         encoding = {v : {'zlib': True, 'complevel': 6} for v in vars}
 
         with ProgressBar():
-            # todo: this breaks if it fills memory?
             self.ds.to_netcdf(out_file, encoding=encoding, **kwargs)
 
 if __name__ == '__main__':
-    dc = C3S_DataCube(r"D:\data-read\temp\subset",
-                      chunks={'lat': 100, 'lon': 100})
-    img = dc.read_img('2003-01-10')
-    dc.write_stack(r'C:\Temp\test\stack.nc')
-    #dc.read_ts(15,45)
+    ds = C3S_DataCube("/home/wolfgang/data-read/temp/c3s",
+                      chunks=None, clip_dates=('2020-01-01', '2020-12-31'))
+    #ts = ds.read_ts(45,15)
+    for gpi in ds.grid.grid_points_for_cell(2244)[0]:
+        ts = ds.read_ts(gpi)
+        print(ts)
+
+    for t in ['2020-05-01', '2020-05-02', '2020-05-03']:
+        img = ds.read_img(t)
+        print(img)
