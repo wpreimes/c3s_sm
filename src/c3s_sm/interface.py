@@ -38,26 +38,415 @@ from pygeobase.object_base import Image
 from pygeobase.io_base import ImageBase
 from pygeobase.io_base import MultiTemporalImageBase
 from pygeogrids.netcdf import load_grid
-from pygeogrids.grids import CellGrid
 
 import warnings
 from netCDF4 import Dataset
 from pynetcf.time_series import GriddedNcOrthoMultiTs
 from datetime import datetime
 from parse import parse
-import glob
-from typing import Union
-
-fntempl = "C3S-SOILMOISTURE-L3S-SSM{unit}-{prod}-{temp}-{datetime}-{cdr}-{vers}.{subvers}.nc"
 
 try:
     import xarray as xr
-    import dask
-    from dask.diagnostics import ProgressBar
     xr_supported = True
 except ImportError:
     xr_supported = False
 
+fntempl = "C3S-SOILMOISTURE-L3S-SSM{unit}-{prod}-{temp}-{datetime}-{cdr}-{vers}.{subvers}.nc"
+
+
+class C3SImg(ImageBase):
+    """
+    Class to read a single C3S image (for one time stamp)
+    """
+    def __init__(self,
+                 filename,
+                 parameters=None,
+                 mode='r',
+                 grid=SMECV_Grid_v052(None),
+                 flatten=False,
+                 fillval=np.nan):
+        """
+        Parameters
+        ----------
+        filename : str
+            Path to the file to read
+        parameters : str or Iterable, optional (default: 'sm')
+            Names of parameters in the file to read.
+            If None are passed, all are read.
+        mode : str, optional (default: 'r')
+            Netcdf file mode, choosing something different to r may delete data.
+        grid : pygeogrids.CellGrid, optional (default: SMECV_Grid_v052(None))
+            Subgrid of point to read the data for, to read 2d arrays, this
+            must have a 2d shape assigned.
+        flatten: bool, optional (default: False)
+            If set then the data is read into 1D arrays. This is used to e.g
+            reshuffle the data for a subset of points.
+        fillval : flot or dict, optional (default: np.nan)
+            Fill Value for masked pixels, if a dict is passed, this can be
+            set for each parameter individually, otherwise it applies to all.
+            Note that choosing np.nan can lead to a change in dtype for some
+            (int) parameters.
+        """
+        self.path = os.path.dirname(filename)
+        self.fname = os.path.basename(filename)
+
+        super(C3SImg, self).__init__(os.path.join(self.path, self.fname), mode=mode)
+
+        if parameters is None:
+            parameters = []
+        if type(parameters) != list:
+            parameters = [parameters]
+
+        self.parameters = parameters
+        self.grid = grid
+        self.flatten = flatten
+
+        self.grid = grid
+
+        self.image_missing = False
+        self.img = None  # to be loaded
+        self.glob_attrs = None
+
+        if isinstance(fillval, dict):
+            self.fillval = fillval
+            for p in self.parameters:
+                if p not in self.fillval:
+                    self.fillval[p] = None
+        else:
+            self.fillval ={p: fillval for p in self.parameters}
+
+    def __read_empty_flat_image(self) -> (dict, dict):
+        """
+        Create an empty image for filling missing dates, this is necessary
+        for reshuffling as img2ts cannot handle missing days.
+        """
+        self.image_missing = True
+
+        return_img = {}
+        return_metadata = {}
+
+        yres, xres = self.grid.shape
+
+        for param in self.parameters:
+            if param in self.fillval.keys():
+                fill_val = self.fillval[param]
+            else:
+                warnings.warn(f"No fill value defined, fill {param} with np.nan")
+                fill_val = np.nan
+            return_img[param] = np.full((yres, xres), fill_val).flatten()
+            return_metadata[param] = {'image_missing': 1}
+
+        return return_img, return_metadata
+
+    def __read_flat_img(self) -> (dict, dict, dict, datetime):
+        """
+        Reads a single C3S image.
+        """
+        with Dataset(self.filename, mode='r') as ds:
+            timestamp = num2date(ds['time'], ds['time'].units,
+                                 only_use_cftime_datetimes=True,
+                                 only_use_python_datetimes=False)
+
+            assert len(timestamp) == 1, "Found more than 1 time stamps in image"
+            timestamp = timestamp[0]
+
+            param_img = {}
+            param_meta = {}
+
+            if len(self.parameters) == 0:
+                # all data vars, exclude coord vars
+                self.parameters = [k for k in ds.variables.keys()
+                                   if k not in ds.dimensions.keys()]
+
+            parameters = list(self.parameters)
+
+            for parameter in parameters:
+                metadata = {}
+                param = ds.variables[parameter]
+                data = param[:]
+
+                # read long name, FillValue and unit
+                for attr in param.ncattrs():
+                    metadata[attr] = param.getncattr(attr)
+
+                if (param in self.fillval) and (self.fillval[param] is not None):
+                    try:
+                        data = data.filled(fill_value=self.fillval[param])
+                    except TypeError: # trying to fill with incompatible type, change type
+                        dtype = type(self.fillval[param])
+                        data = data.astype(dtype).filled(self.fillval[param])
+                else:
+                    data = data.filled()
+
+                data = np.flipud(data).flatten()
+
+                metadata['image_missing'] = 0
+
+                param_img[parameter] = data
+                param_meta[parameter] = metadata
+
+            global_attrs = ds.__dict__
+            global_attrs['timestamp'] = str(timestamp)
+
+        return param_img, param_meta, global_attrs, timestamp
+
+    def __mask_and_reshape(self,
+                           data: dict,
+                           shape_2d:tuple,
+                           crop_2d=True) -> dict:
+        """
+        Takes the grid and drops points that are not active.
+        for flattened arrays that means that only the active gpis are kept.
+        for 2 arrays inactive gpis are set to nan.
+
+        Parameters
+        ----------
+        data: dict
+            Variable names and flattened image data.
+        shape_2d : tuple
+            2d shape of the original image.
+        crop_2d : bool, optional (default: True)
+            If the data is not flattened, crop the 2d images to the area where
+            actual data is, i.e. remove the as many nans around the data.
+
+        Returns
+        -------
+        dat : dict
+            Masked, reshaped and potentially cropped data.
+        """
+
+        # check if flatten. if flatten, dont crop and dont reshape
+        # if not flatten, reshape based on grid shape.
+
+        # select active gpis
+        for param, dat in data.items():
+            if self.flatten:
+                dat = dat[self.grid.activegpis]
+            else:
+                dat[~self.grid.activegpis] = self.fillval[param]
+                dat.reshape(self.grid.shape)
+
+        if not self.flatten:
+
+        if crop_2d:
+            firstcol = nancols.argmin()  # 5, the first index where not NAN
+            firstrow = nanrows.argmin()  # 7
+
+
+    def read(self, timestamp=None):
+        """
+        Read a single SMOS image, if it exists, otherwise fill an empty image
+        """
+        try:
+            data, var_meta, glob_meta, img_timestamp = self.__read_flat_img()
+        except IOError:
+            warnings.warn(f'Error loading image for {os.path.join(self.path, self.fname)}. '
+                          'Generating empty image instead')
+            data, var_meta = self.__read_empty_flat_image()
+            global_meta, img_timestamp = {}, None
+
+        if timestamp is not None:
+            if img_timestamp is None:
+                img_timestamp = timestamp
+            assert img_timestamp == timestamp, "Time stamps do not match"
+
+        data = self.__mask_and_reshape(data, crop_2d=True)
+
+        if self.flatten:
+            return Image(self.grid.activearrlon,
+                         np.flipud(self.grid.activearrlat),
+                         data,
+                         var_meta,
+                         timestamp)
+        else:
+            if len(self.grid.shape) != 2:
+                raise ValueError(
+                    "Reading 2d image needs grid with 2d shape"
+                    "You can either use the global grid without subsets,"
+                    "or make sure that you create a subgrid from bbox in"
+                    "an area where no gpis are missing.")
+            else:
+                rows, cols = self.grid.shape
+
+            for key in data:
+                data[key] = data[key].reshape(rows, cols)
+
+            return Image(self.grid.activearrlon.reshape(rows, cols),
+                         self.grid.activearrlat.reshape(rows, cols),
+                         data,
+                         var_meta,
+                         timestamp)
+
+
+    def write(self, *args, **kwargs):
+        pass
+
+    def close(self, *args, **kwargs):
+        pass
+
+    def flush(self, *args, **kwargs):
+        pass
+
+class C3S_Nc_Img_Stack(MultiTemporalImageBase):
+    """
+    Class for reading multiple images and iterate over them.
+    """
+
+    def __init__(self,
+                 data_path,
+                 parameters='sm',
+                 grid=SMECV_Grid_v052(None),
+                 flatten=False,
+                 solve_ambiguity='sort_last',
+                 subpath_templ=('%Y',),
+                 float_fillval=np.nan):
+        """
+        Parameters
+        ----------
+        data_path : str
+            Path to directory where C3S images are stored
+        parameters : list or str,  optional (default: 'sm')
+            Variables to read from the image files.
+        grid : pygeogrids.CellGrid, optional (default: SMECV_Grid_v052(None)
+            Subset of the image to read
+        array_1D : bool, optional (default: False)
+            Flatten the read image to a 1D array instead of a 2D array
+        solve_ambiguity : str, optional (default: 'latest')
+            Method to solve ambiguous time stamps, e.g. if a reprocessing
+            was performed.
+                - error: raises error in case of ambiguity
+                - sort_last (default): uses the last file when sorted by file
+                    name, in case that multiple files are found.
+                - sort_first: uses the first file when sorted by file name
+                    in case that multiple files are found.
+        subpath_templ : list, optional (default: ['%Y'])
+            List of subdirectory names to build file paths.
+        float_fillval : float or None, optional (default: np.nan)
+            Fill Value for masked pixels, this is only applied to float variables.
+            Therefore e.g. mask variables are never filled but use the fill value
+            as in the data.
+        """
+
+        self.data_path = data_path
+        ioclass_kwargs = {'parameters': parameters,
+                          'grid' : grid,
+                          'flatten': flatten,
+                          'float_fillval': float_fillval}
+
+        self.fname_args = self._parse_filename(fntempl)
+        self.solve_ambiguity = solve_ambiguity
+        fn_args = self.fname_args.copy()
+        fn_args['subvers'] = '*'
+        fn_args['cdr'] = '*'
+        filename_templ = fntempl.format(**fn_args)
+
+        super(C3S_Nc_Img_Stack, self).__init__(path=data_path, ioclass=C3SImg,
+                                               fname_templ=filename_templ ,
+                                               datetime_format="%Y%m%d%H%M%S",
+                                               subpath_templ=subpath_templ,
+                                               exact_templ=False,
+                                               ioclass_kws=ioclass_kwargs)
+
+    def _build_filename(self, timestamp:datetime, custom_templ:str=None,
+                        str_param:dict=None):
+        """
+        This function uses _search_files to find the correct
+        filename and checks if the search was unambiguous.
+
+        Parameters
+        ----------
+        timestamp: datetime
+            datetime for given filename
+        custom_tmpl : string, optional
+            If given the fname_templ is not used but the custom_templ. This
+            is convenient for some datasets where not all file names follow
+            the same convention and where the read_image function can choose
+            between templates based on some condition.
+        str_param : dict, optional
+            If given then this dict will be applied to the fname_templ using
+            the fname_templ.format(**str_param) notation before the resulting
+            string is put into datetime.strftime.
+        """
+        filename = self._search_files(timestamp, custom_templ=custom_templ,
+                                      str_param=str_param)
+        if len(filename) == 0:
+            raise IOError("No file found for {:}".format(timestamp.ctime()))
+        if len(filename) > 1:
+            if self.solve_ambiguity == 'sort_last':
+                warnings.warn(f'Ambiguous file for {str(timestamp)} found.'
+                              f' Sort and use last: {filename[-1]}, skipped {filename[:-1]}')
+                filename = [filename[-1]]
+            elif self.solve_ambiguity == 'sort_first':
+                warnings.warn(f'Ambiguous file for {str(timestamp)} found.'
+                              f' Sort and use first: {filename[0]}')
+                filename = [filename[0]]
+            else:
+                raise IOError(
+                    "File search is ambiguous {:}".format(filename))
+
+        return filename[0]
+
+    def _parse_filename(self, template):
+        """
+        Search a file in the passed directory and use the filename template to
+        to read settings.
+
+        Parameters
+        -------
+        template : str
+            Template for all files in the passed directory.
+
+        Returns
+        -------
+        parse_result : parse.Result
+            Parsed content of filename string from filename template.
+        """
+
+        for curr, subdirs, files in os.walk(self.data_path):
+            for f in files:
+                file_args = parse(template, f)
+                if file_args is None:
+                    continue
+                else:
+                    file_args = file_args.named
+                    file_args['datetime'] = '{datetime}'
+                    return file_args
+
+        raise IOError('No file name in passed directory fits to template')
+
+    def tstamps_for_daterange(self, start_date, end_date):
+        """
+        Return dates in the passed period, with respect to the temp resolution
+        of the images in the path.
+
+        Parameters
+        ----------
+        start_date: datetime
+            start of date range
+        end_date: datetime
+            end of date range
+
+        Returns
+        -------
+        timestamps : list
+            list of datetime objects of each available image between
+            start_date and end_date
+        """
+
+        if self.fname_args['temp'] == 'MONTHLY':
+            next = lambda date : date + relativedelta(months=1)
+        elif self.fname_args['temp'] == 'DAILY':
+            next = lambda date : date + relativedelta(days=1)
+        elif self.fname_args['temp'] == 'DEKADAL':
+            next = lambda date : date + relativedelta(days=10)
+        else:
+            raise NotImplementedError
+
+        timestamps = [start_date]
+        while next(timestamps[-1]) <= end_date:
+            timestamps.append(next(timestamps[-1]))
+
+        return timestamps
 
 class C3STs(GriddedNcOrthoMultiTs):
     """
@@ -133,7 +522,7 @@ class C3STs(GriddedNcOrthoMultiTs):
 
         return ts
 
-    def read_cell(self, cell, var='sm'):
+    def read_cell(self, cell, var='sm') -> pd.DataFrame:
         """
         Read all time series for a single variable in the selected cell.
 
@@ -162,445 +551,69 @@ class C3STs(GriddedNcOrthoMultiTs):
                 data = data.replace(-9999.0000, np.nan)
             return data
 
-
-class C3SImg(ImageBase):
-    """
-    Class to read a single C3S image (for one time stamp)
-    """
-    def __init__(self,
-                 filename,
-                 parameters=None,
-                 mode='r',
-                 grid=SMECV_Grid_v052(None),
-                 flatten=False,
-                 float_fillval=np.nan):
+    def read_cell_cube(self, cell:int, dt_index:pd.Index, params:list,
+                       param_fill_val: dict = None, param_scalf: dict = None,
+                       jd0_unit='datetime', to_replace=None,
+                       bit_valid_range=None, bit_rainforest=None,
+                       as_xr=False):
         """
-        Parameters
-        ----------
-        filename : str
-            Path to the file to read
-        parameters : str or Iterable, optional (default: 'sm')
-            Names of parameters in the file to read.
-            If None are passed, all are read.
-        mode : str, optional (default: 'r')
-            Netcdf file mode, choosing something different to r may delete data.
-        grid : pygeogrids.CellGrid, optional (default: SMECV_Grid_v052(None))
-            Subgrid of point to read the data for, to read 2d arrays, this
-            must have a 2d shape assigned.
-        flatten: bool, optional (default: False)
-            If set then the data is read into 1D arrays. This is used to e.g
-            reshuffle the data for a subset of points.
-        float_fillval : float or None, optional (default: np.nan)
-            Fill Value for masked pixels, this is only applied to float variables.
-            Therefore e.g. mask variables are never filled but use the fill value
-            as in the data.
-        """
-        self.path = os.path.dirname(filename)
-        self.fname = os.path.basename(filename)
-
-        super(C3SImg, self).__init__(os.path.join(self.path, self.fname), mode=mode)
-
-        if parameters is None:
-            parameters = []
-        if type(parameters) != list:
-            parameters = [parameters]
-
-        self.parameters = parameters
-        self.grid = grid
-        self.flatten = flatten
-
-        self.grid = grid
-
-        self.image_missing = False
-        self.img = None  # to be loaded
-        self.glob_attrs = None
-
-        self.float_fillval = float_fillval
-
-    def __read_empty(self) -> (dict, dict):
-        """
-        Create an empty image for filling missing dates, this is necessary
-        for reshuffling as img2ts cannot handle missing days.
-        """
-        self.image_missing = True
-
-        return_img = {}
-        return_metadata = {}
-
-        yres, xres = self.grid.shape
-
-        for param in self.parameters:
-            data = np.full((yres, xres), np.nan)
-            return_img[param] = data.flatten()
-            return_metadata[param] = {'image_missing': 1}
-
-        return return_img, return_metadata
-
-    def __read_img(self) -> (dict, dict, dict, datetime):
-        """
-        Reads a single C3S image.
-        """
-        ds = Dataset(self.filename, mode='r')
-        timestamp = num2date(ds['time'], ds['time'].units,
-                             only_use_cftime_datetimes=True,
-                             only_use_python_datetimes=False)
-
-        assert len(timestamp) == 1, "Found more than 1 time stamps in image"
-        timestamp = timestamp[0]
-
-        param_img = {}
-        param_meta = {}
-
-        if len(self.parameters) == 0:
-            # all data vars, exclude coord vars
-            self.parameters = [k for k in ds.variables.keys()
-                               if k not in ds.dimensions.keys()]
-
-        parameters = list(self.parameters)
-
-        for parameter in parameters:
-            metadata = {}
-            param = ds.variables[parameter]
-            data = param[:]
-
-            # read long name, FillValue and unit
-            for attr in param.ncattrs():
-                metadata[attr] = param.getncattr(attr)
-
-            if self.float_fillval is not None:
-                if issubclass(data.dtype.type, np.floating):
-                    data = data.filled(fill_value=self.float_fillval)
-            else:
-                data = data.filled()
-
-            metadata['image_missing'] = 0
-
-            param_img[parameter] = data
-            param_meta[parameter] = metadata
-
-        global_attrs = ds.__dict__
-        global_attrs['timestamp'] = str(timestamp)
-        ds.close()
-
-        return param_img, param_meta, global_attrs, timestamp
-
-    def read(self):
-        """
-        Read a single SMOS image, if it exists, otherwise fill an empty image
-        """
-        try:
-            dat, var_meta, glob_meta, timestamp  = self.__read_img()
-        except IOError:
-            warnings.warn(f'Error loading image for {os.path.join(self.path, self.fname)}. '
-                          'Generating empty image instead')
-            dat, var_meta = self.__read_empty()
-            global_meta, timestamp = {}, None
-
-        if self.flatten:
-            return Image(self.grid.activearrlon,
-                         self.grid.activearrlat, # flip?
-                         dat, # flip?
-                         var_meta,
-                         timestamp)
-        else:
-            yres, xres = self.grid.shape
-            for key in dat:
-                dat[key] = dat[key].reshape(xres, yres)
-
-            return Image(self.grid.activearrlon.reshape(xres, yres),
-                         self.grid.activearrlat.reshape(xres, yres), # flip?
-                         dat, # flip?
-                         var_meta,
-                         timestamp)
-
-
-    def write(self, *args, **kwargs):
-        pass
-
-    def close(self, *args, **kwargs):
-        pass
-
-    def flush(self, *args, **kwargs):
-        pass
-
-class C3S_Nc_Img_Stack(MultiTemporalImageBase):
-    """
-    Class for reading multiple images and iterate over them.
-    """
-
-    def __init__(self, data_path, parameters='sm', subgrid=SMECV_Grid_v052(None),
-                 array_1D=False, solve_ambiguity='sort_last', float_fillval=np.nan):
-        """
-        Parameters
-        ----------
-        data_path : str
-            Path to directory where C3S images are stored
-        parameters : list or str,  optional (default: 'sm')
-            Variables to read from the image files.
-        subgrid : pygeogrids.CellGrid, optional (default: SMECV_Grid_v052(None)
-            Subset of the image to read
-        array_1D : bool, optional (default: False)
-            Flatten the read image to a 1D array instead of a 2D array
-        solve_ambiguity : str, optional (default: 'latest')
-            Method to solve ambiguous time stamps, e.g. if a reprocessing
-            was performed.
-                error: raises error in case of ambiguity
-                sort_last: uses the last file when sorted by file name,
-                sort_first: uses the first file when sorted by file name,
-        """
-
-        self.data_path = data_path
-        ioclass_kwargs = {'parameters': parameters,
-                          'subgrid' : subgrid,
-                          'array_1D': array_1D}
-
-        self.fname_args = self._parse_filename(fntempl)
-        self.solve_ambiguity = solve_ambiguity
-        fn_args = self.fname_args.copy()
-        fn_args['subvers'] = '*'
-        fn_args['cdr'] = '*'
-        filename_templ = fntempl.format(**fn_args)
-
-        subpath_templ = ['%Y']
-
-        super(C3S_Nc_Img_Stack, self).__init__(path=data_path, ioclass=C3SImg,
-                                               fname_templ=filename_templ ,
-                                               datetime_format="%Y%m%d%H%M%S",
-                                               subpath_templ=subpath_templ,
-                                               exact_templ=False,
-                                               ioclass_kws=ioclass_kwargs)
-
-    def _build_filename(self, timestamp:datetime, custom_templ:str=None,
-                        str_param:dict=None):
-        """
-        This function uses _search_files to find the correct
-        filename and checks if the search was unambiguous.
+        Read a regular subcube of cell data. I.e. missing GPIs (and cells)
+        are filled with the passed fill values. Returned data is always of
+        shape (dt_index.size, 20, 20) for 5DEG cells.
 
         Parameters
         ----------
-        timestamp: datetime
-            datetime for given filename
-        custom_tmpl : string, optional
-            If given the fname_templ is not used but the custom_templ. This
-            is convenient for some datasets where not all file names follow
-            the same convention and where the read_image function can choose
-            between templates based on some condition.
-        str_param : dict, optional
-            If given then this dict will be applied to the fname_templ using
-            the fname_templ.format(**str_param) notation before the resulting
-            string is put into datetime.strftime.
-        """
-        filename = self._search_files(timestamp, custom_templ=custom_templ,
-                                      str_param=str_param)
-        if len(filename) == 0:
-            raise IOError("No file found for {:}".format(timestamp.ctime()))
-        if len(filename) > 1:
-            if self.solve_ambiguity == 'sort_last':
-                warnings.warn(f'Ambiguous file for {str(timestamp)} found.'
-                              f' Sort and use last: {filename[-1]}')
-                filename = [filename[-1]]
-            elif self.solve_ambiguity == 'sort_first':
-                warnings.warn(f'Ambiguous file for {str(timestamp)} found.'
-                              f' Sort and use first: {filename[0]}')
-                filename = [filename[0]]
-            else:
-                raise IOError(
-                    "File search is ambiguous {:}".format(filename))
-
-        return filename[0]
-
-    def _parse_filename(self, template):
-        """
-        Search a file in the passed directory and use the filename template to
-        to read settings.
-
-        Parameters
-        -------
-        template : str
-            Template for all files in the passed directory.
+        cell : int
+            Number of the cell (file) to read.
+        dt_index : pd.Index
+            DateTime index that is used in case a point has no data.
+        params : list
+            List of parameter names to read from file
+        param_fill_val : dict, optional (default: None)
+            Parameter names and fill values to use in the loaded time series
+        param_scalf : dict, optional (default: None)
+            Parameter names and scale factors, i.e. values that a parameter
+            time series is multiplied with after reading.
+        jd0_unit : str, optional (default: None)
+            Unit to convert jd to.
+            None to use the orignal values, datetime to convert to datetime
+            or a string that is given as unit to date2num
+        to_replace : dict, optional (default: None)
+            See read_agg_cell_data fuction
+        bit_valid_range : int, optional (default: None)
+            SM values > 100 and < 0 are replaced with fill values for ALL 3 products.
+            If a bit is passed here (e.g. bit_out_of_range, e.g. 4), the bit is
+            added to the flag column value.
+        bit_rainforest : int, optional (default: None)
+            bit flag that defines rainforest points (dense vegetation, e.g. 2).
+            If None is passed the original flag values are kept.
+            Replace sm/sm_uncertainty values with NaN for all points that
+            are marked as rainforest in grid. Add dense veg bit to flag.
+        as_xr : bool, optional (default: False)
+            Return data as xarray dataset (instead of a dictionary)
 
         Returns
         -------
-        parse_result : parse.Result
-            Parsed content of filename string from filename template.
+        data : xr.Dataset or dict
+        coords : dict, optional (only when as_xr is false)
+            Coordinates of the pixels
+
         """
+        if not xr_supported:
+            print("xarray is not installed.")
+            return
 
-        for curr, subdirs, files in os.walk(self.data_path):
-            for f in files:
-                file_args = parse(template, f)
-                if file_args is None:
-                    continue
-                else:
-                    file_args = file_args.named
-                    file_args['datetime'] = '{datetime}'
-                    return file_args
+        file_path = os.path.join(self.path, '{}.nc'.format("%04d" % (cell,)))
+        ds = xr.open_dataset(file_path)
 
-        raise IOError('No file name in passed directory fits to template')
+    def iter_ts(self, **kwargs):
+        pass
 
-
-    def tstamps_for_daterange(self, start_date, end_date):
-        """
-        Return dates in the passed period, with respect to the temp resolution
-        of the images in the path.
-
-        Parameters
-        ----------
-        start_date: datetime
-            start of date range
-        end_date: datetime
-            end of date range
-
-        Returns
-        -------
-        timestamps : list
-            list of datetime objects of each available image between
-            start_date and end_date
-        """
-
-        if self.fname_args['temp'] == 'MONTHLY':
-            next = lambda date : date + relativedelta(months=1)
-        elif self.fname_args['temp'] == 'DAILY':
-            next = lambda date : date + relativedelta(days=1)
-        elif self.fname_args['temp'] == 'DEKADAL':
-            next = lambda date : date + relativedelta(days=10)
-        else:
-            raise NotImplementedError
-
-        timestamps = [start_date]
-        while next(timestamps[-1]) <= end_date:
-            timestamps.append(next(timestamps[-1]))
-
-        return timestamps
-
-class C3S_DataCube:
-    """
-    TODO
-    """
-    def __init__(self,
-                 data_root,
-                 grid=None, # todo: should use data from files.
-                 parameters='sm',
-                 clip_dates=None,
-                 chunks: Union[str, dict]='space',
-                 parallel=True,
-                 **kwargs):
-        """
-        TODO
-        """
-        if isinstance(chunks, str):
-            if chunks.lower() == 'space':
-                chunks = dict(lon=100, lat=100, time=None)  # time series optimised
-            elif chunks.lower() == 'time':
-                chunks = dict(time=500)
-            else:
-                raise ValueError("Pass 'space' or 'time'")
-
-        self.parameters = list(np.atleast_1d(parameters))
-        if grid is None:
-            self.grid = SMECV_Grid_v052(None)
-        else:
-            self.grid = load_grid(grid)
-
-        self.root_path = data_root
-
-        if clip_dates is not None:
-            start_date = pd.to_datetime(clip_dates[0])
-            end_date = pd.to_datetime(clip_dates[1])
-        else:
-            start_date = end_date = None
-
-        files = self._filter_files(start_date, end_date)
-
-        drop_vars = []
-        with Dataset(files[0]) as ds0:
-            for var in ds0.variables.keys():
-                if var not in ds0.dimensions.keys() and var not in self.parameters:
-                    drop_vars.append(var)
-
-        with ProgressBar():
-            self.ds = xr.open_mfdataset(files,
-                                        data_vars='minimal',
-                                        concat_dim='time',
-                                        parallel=parallel,
-                                        engine='netcdf4',
-                                        chunks=chunks,
-                                        drop_variables=drop_vars,
-                                        **kwargs)
-
-    def _filter_files(self, start_date:datetime=None, end_date:datetime=None) -> list:
-        if start_date is None:
-            start_date = datetime(1978, 1, 1)
-        if end_date is None:
-            end_date = datetime(2100,1,1)
-
-        files = []
-        allfiles = glob.glob(os.path.join(self.root_path, '**', '**.nc'))
-
-        for fname in allfiles:
-            fn_comps = parse(fntempl, os.path.basename(fname))
-            dt = pd.to_datetime(fn_comps['datetime'])
-            if dt >= start_date and dt <= end_date:
-                files.append(fname)
-
-        return files
-
-    def _read_gp(self,
-                 gpi: int) -> pd.DataFrame:
-
-        # todo :load a chunk here to make ts extraction faster and keep it stored for subsequent calls.
-        row, col = self.grid.gpi2rowcol(gpi)
-        ts_data = self.ds.isel({'lat': row, 'lon': col})
-        ts_data = ts_data.drop_vars(('lat', 'lon')).to_dataframe()
-        return ts_data
-
-    def read_img(self,
-                 time: Union[str, datetime]) -> Image:
-        time = pd.to_datetime(time)
-        data = self.ds.sel({'time': time})
-
-        vars = [d for d in list(data.variables.keys()) if d not in list(data.coords.keys())]
-
-        return Image(lon=data['lon'].values,
-                     lat=data['lat'].values,
-                     data={v: data[v].values for v in vars},
-                     metadata={v: data[v].attrs for v in vars},
-                     timestamp=time,
-                     timekey='time')
-
-    def read_ts(self,
-                *args,
-                max_dist=np.inf):
-
-        if len(args) == 1:
-            data = self._read_gp(args[0])
-        elif len(args) == 2:
-            gpi, dist = self.grid.find_nearest_gpi(args[0], args[1], max_dist=max_dist)
-            if hasattr(gpi, '__len__') and (len(gpi) == 0):
-                data = None
-            else:
-                data = self._read_gp(gpi)
-        else:
-            raise ValueError("Wrong number of arguments passed, either pass 1 gpi"
-                             " or two coordinates (lon, lat)")
-
-        return data
-
-    def write_stack(self, out_file, **kwargs):
-        vars = [v for v in list(self.ds.variables.keys()) if v not in self.ds.coords.keys()]
-
-        encoding = {v : {'zlib': True, 'complevel': 6} for v in vars}
-
-        with ProgressBar():
-            self.ds.to_netcdf(out_file, encoding=encoding, **kwargs)
+    def write_ts(self, *args, **kwargs):
+        pass
 
 if __name__ == '__main__':
-    ds = C3S_DataCube("/home/wolfgang/data-read/temp/c3s",
-                      chunks=None, clip_dates=('2020-01-01', '2020-12-31'))
-    #ts = ds.read_ts(45,15)
-    for gpi in ds.grid.grid_points_for_cell(2244)[0]:
-        ts = ds.read_ts(gpi)
-        print(ts)
+    img = C3S_Nc_Img_Stack(r"C:\Temp\delete_me\c3s_sm\img",
+                           parameters=['sm', 'flag'])
+    img.read(datetime(2002,1,1))
 
-    for t in ['2020-05-01', '2020-05-02', '2020-05-03']:
-        img = ds.read_img(t)
-        print(img)
