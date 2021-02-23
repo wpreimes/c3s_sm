@@ -53,6 +53,7 @@ except ImportError:
 
 fntempl = "C3S-SOILMOISTURE-L3S-SSM{unit}-{prod}-{temp}-{datetime}-{cdr}-{vers}.{subvers}.nc"
 
+import matplotlib.pyplot as plt
 
 class C3SImg(ImageBase):
     """
@@ -81,11 +82,11 @@ class C3SImg(ImageBase):
         flatten: bool, optional (default: False)
             If set then the data is read into 1D arrays. This is used to e.g
             reshuffle the data for a subset of points.
-        fillval : flot or dict, optional (default: np.nan)
+        fillval : flot or dict or None, optional (default: np.nan)
             Fill Value for masked pixels, if a dict is passed, this can be
             set for each parameter individually, otherwise it applies to all.
             Note that choosing np.nan can lead to a change in dtype for some
-            (int) parameters.
+            (int) parameters. None will use the fill value from the netcdf file
         """
         self.path = os.path.dirname(filename)
         self.fname = os.path.basename(filename)
@@ -169,14 +170,16 @@ class C3SImg(ImageBase):
                 for attr in param.ncattrs():
                     metadata[attr] = param.getncattr(attr)
 
-                if (param in self.fillval) and (self.fillval[param] is not None):
+                if (parameter in self.fillval) and (self.fillval[parameter] is not None):
                     try:
-                        data = data.filled(fill_value=self.fillval[param])
+                        data = data.filled(fill_value=self.fillval[parameter])
                     except TypeError: # trying to fill with incompatible type, change type
-                        dtype = type(self.fillval[param])
-                        data = data.astype(dtype).filled(self.fillval[param])
+                        dtype = type(self.fillval[parameter])
+                        data = data.astype(dtype).filled(self.fillval[parameter])
                 else:
                     data = data.filled()
+
+                self.shape = (data.shape[1], data.shape[2])
 
                 data = np.flipud(data).flatten()
 
@@ -191,9 +194,7 @@ class C3SImg(ImageBase):
         return param_img, param_meta, global_attrs, timestamp
 
     def __mask_and_reshape(self,
-                           data: dict,
-                           shape_2d:tuple,
-                           crop_2d=True) -> dict:
+                           data: dict) -> dict:
         """
         Takes the grid and drops points that are not active.
         for flattened arrays that means that only the active gpis are kept.
@@ -205,9 +206,6 @@ class C3SImg(ImageBase):
             Variable names and flattened image data.
         shape_2d : tuple
             2d shape of the original image.
-        crop_2d : bool, optional (default: True)
-            If the data is not flattened, crop the 2d images to the area where
-            actual data is, i.e. remove the as many nans around the data.
 
         Returns
         -------
@@ -223,15 +221,18 @@ class C3SImg(ImageBase):
             if self.flatten:
                 dat = dat[self.grid.activegpis]
             else:
-                dat[~self.grid.activegpis] = self.fillval[param]
-                dat.reshape(self.grid.shape)
+                dat[~np.isin(self.grid.gpis, self.grid.activegpis)] = self.fillval[param]
+                if len(self.shape) != 2:
+                    raise ValueError(
+                        "Reading 2d image needs grid with 2d shape"
+                        "You can either use the global grid without subsets,"
+                        "or make sure that you create a subgrid from bbox in"
+                        "an area where no gpis are missing.")
+                dat = dat.reshape(self.shape)
 
-        if not self.flatten:
+            data[param] = dat
 
-        if crop_2d:
-            firstcol = nancols.argmin()  # 5, the first index where not NAN
-            firstrow = nanrows.argmin()  # 7
-
+        return data
 
     def read(self, timestamp=None):
         """
@@ -250,7 +251,7 @@ class C3SImg(ImageBase):
                 img_timestamp = timestamp
             assert img_timestamp == timestamp, "Time stamps do not match"
 
-        data = self.__mask_and_reshape(data, crop_2d=True)
+        data = self.__mask_and_reshape(data)
 
         if self.flatten:
             return Image(self.grid.activearrlon,
@@ -259,20 +260,8 @@ class C3SImg(ImageBase):
                          var_meta,
                          timestamp)
         else:
-            if len(self.grid.shape) != 2:
-                raise ValueError(
-                    "Reading 2d image needs grid with 2d shape"
-                    "You can either use the global grid without subsets,"
-                    "or make sure that you create a subgrid from bbox in"
-                    "an area where no gpis are missing.")
-            else:
-                rows, cols = self.grid.shape
-
-            for key in data:
-                data[key] = data[key].reshape(rows, cols)
-
-            return Image(self.grid.activearrlon.reshape(rows, cols),
-                         self.grid.activearrlat.reshape(rows, cols),
+            return Image(self.grid.arrlon.reshape(*self.shape),
+                         self.grid.arrlat.reshape(*self.shape),
                          data,
                          var_meta,
                          timestamp)
@@ -299,7 +288,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
                  flatten=False,
                  solve_ambiguity='sort_last',
                  subpath_templ=('%Y',),
-                 float_fillval=np.nan):
+                 fillval=np.nan):
         """
         Parameters
         ----------
@@ -321,17 +310,18 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
                     in case that multiple files are found.
         subpath_templ : list, optional (default: ['%Y'])
             List of subdirectory names to build file paths.
-        float_fillval : float or None, optional (default: np.nan)
-            Fill Value for masked pixels, this is only applied to float variables.
-            Therefore e.g. mask variables are never filled but use the fill value
-            as in the data.
+        fillval : flot or dict or None, optional (default: np.nan)
+            Fill Value for masked pixels, if a dict is passed, this can be
+            set for each parameter individually, otherwise it applies to all.
+            Note that choosing np.nan can lead to a change in dtype for some
+            (int) parameters. None will use the fill value from the netcdf file
         """
 
         self.data_path = data_path
         ioclass_kwargs = {'parameters': parameters,
-                          'grid' : grid,
+                          'grid': grid,
                           'flatten': flatten,
-                          'float_fillval': float_fillval}
+                          'fillval': fillval}
 
         self.fname_args = self._parse_filename(fntempl)
         self.solve_ambiguity = solve_ambiguity
@@ -613,7 +603,7 @@ class C3STs(GriddedNcOrthoMultiTs):
         pass
 
 if __name__ == '__main__':
-    img = C3S_Nc_Img_Stack(r"C:\Temp\delete_me\c3s_sm\img",
-                           parameters=['sm', 'flag'])
-    img.read(datetime(2002,1,1))
+    img = C3SImg("//home/wolfgang/data-read/temp/c3s/2020/C3S-SOILMOISTURE-L3S-SSMV-COMBINED-DAILY-20200102000000-ICDR-v201912.0.0.nc",
+                           parameters=['sm', 'flag'], grid=SMECV_Grid_v052().subgrid_from_bbox(-5, 10, 10, 50), flatten=True)
+    dat = img.read()
 
