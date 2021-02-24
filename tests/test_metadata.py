@@ -83,8 +83,3 @@ def test_C3s_dekmon_tsatt_nc():
     assert dob.ts_attributes['nobs'] == {'full_name': 'Number of valid observation'}
 
     assert dob.ts_attributes['sensor']['flag_values'].size == 11
-
-
-if __name__ == '__main__':
-    test_C3s_daily_tsatt_nc()
-    test_C3s_dekmon_tsatt_nc()

@@ -8,18 +8,12 @@ import os
 import sys
 import argparse
 from datetime import datetime
-
 from repurpose.img2ts import Img2Ts
 from c3s_sm.interface import C3S_Nc_Img_Stack, fntempl
 import c3s_sm.metadata as metadata
 from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
-from pygeogrids.grids import BasicGrid
 from smecv_grid.grid import SMECV_Grid_v052
-
-import numpy as np
-
 from parse import parse
-
 from netCDF4 import Dataset
 
 
@@ -47,7 +41,6 @@ def str2bool(val):
         return True
     else:
         return False
-
 
 def parse_filename(data_dir):
     """
@@ -82,10 +75,11 @@ def parse_filename(data_dir):
 
 
 def reshuffle(input_root, outputpath, startdate, enddate,
-              parameters=None, land_points=True,
+              parameters=None, land_points=True, bbox=None,
               imgbuffer=500):
     """
     Reshuffle method applied to C3S data.
+
     Parameters
     ----------
     input_root: string
@@ -101,6 +95,9 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     land_points : bool, optional (default: True)
         Use the land grid to calculate time series on.
         Leads to faster processing and smaller files.
+    bbox : tuple
+        Min lon, min lat, max lon, max lat
+        BBox to read data for.
     imgbuffer: int, optional (default: 50)
         How many images to read at once before writing time series.
     """
@@ -110,27 +107,20 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     else:
         grid = SMECV_Grid_v052(None)
 
-    gpis, lons, lats, cells = grid.get_grid_points()
-    grid_vars = {'gpis': gpis, 'lons':lons, 'lats':lats}
-    # repurpose cannot handle masked arrays
-    for k, v in grid_vars.items(): # type v: np.ma.MaskedArray
-        if isinstance(v, np.ma.MaskedArray):
-            grid_vars[k] = v.filled()
-
-    grid = BasicGrid(lon=grid_vars['lons'],
-                     lat=grid_vars['lats'],
-                     gpis=grid_vars['gpis']).to_cell_grid(5.)
+    if bbox:
+        grid = grid.subgrid_from_bbox(*bbox)
 
     if parameters is None:
         file_args, file_vars = parse_filename(input_root)
         parameters = [p for p in file_vars if p not in ['lat', 'lon', 'time']]
 
+    subpath_templ = ('%Y',) if os.path.isdir(os.path.join(input_root, str(startdate.year))) else None
     input_dataset = C3S_Nc_Img_Stack(data_path=input_root, parameters=parameters,
-                                     subgrid=grid, array_1D=True)
+                                     subgrid=grid, flatten=True, subpath_templ=subpath_templ)
 
     prod_args = input_dataset.fname_args
 
-    kwargs = {'sensor_type' : prod_args['prod'].lower(),
+    kwargs = {'sensor_type': prod_args['prod'].lower(),
               'cdr_type': prod_args['cdr'],
               'product_temp_res':  prod_args['temp'],
               'cls': getattr(metadata, f"C3S_SM_TS_Attrs_{prod_args['vers']}")}
@@ -199,6 +189,11 @@ def parse_args(args):
                         help=("Set True to convert only land points as defined"
                               " in the C3s land mask (faster and less/smaller files)"))
 
+    parser.add_argument("--bbox", type=float, default=None, nargs=4,
+                        help=("min_lon min_lat max_lon max_lat. "
+                              "Bounding Box (lower left and upper right corner) "
+                              "of area to reshuffle (WGS84)"))
+
     parser.add_argument("--imgbuffer", type=int, default=50,
                         help=("How many images to read at once. Bigger "
                               "numbers make the conversion faster but "
@@ -229,16 +224,18 @@ def main(args):
               args.end,
               args.parameters,
               land_points=args.land_points,
+              bbox=args.bbox,
               imgbuffer=args.imgbuffer)
-
-
 
 def run():
     main(sys.argv[1:])
 
 if __name__ == '__main__':
-    input_root = r"C:\Temp\delete_me\c3s_sm\img"
-    outputpath = r"C:\Temp\delete_me\c3s_sm\ts"
-    reshuffle(input_root, outputpath, datetime(2000,1,1), datetime(2002,1,1),
-              parameters=None, land_points=True,
+    input_root = "//home/wolfgang/data-read/temp/c3s/bad_data/"
+    outputpath = "/home/wolfgang/data-write/temp/c3s/ts/"
+
+    parse_filename(input_root)
+
+    reshuffle(input_root, outputpath, datetime(2020,1,1), datetime(2020,1,3),
+              parameters=None, land_points=True, bbox=(-30, 30, 30, 70),
               imgbuffer=500)

@@ -16,14 +16,12 @@ def test_parse_filename():
 
     file_args, file_vars = parse_filename(inpath)
 
-
-    assert file_args['product'] == 'C3S'
-    assert file_args['data_type'] == 'SSMV'
-    assert file_args['sensor_type'] == 'COMBINED'
-    assert file_args['temp_res'] == 'MONTHLY'
-    assert file_args['sub_prod'] == 'ICDR'
-    assert file_args['version'] == 'v201706'
-    assert file_args['sub_version'] == '0.0'
+    assert file_args['unit'] == 'V'
+    assert file_args['prod'] == 'COMBINED'
+    assert file_args['temp'] == 'MONTHLY'
+    assert file_args['cdr'] == 'ICDR'
+    assert file_args['vers'] == 'v201706'
+    assert file_args['subvers'] == '0.0'
 
     assert file_vars == [u'lat', u'lon', u'time', u'nobs', u'sensor', u'freqbandID', u'sm']
 
@@ -34,15 +32,17 @@ def test_reshuffle_TCDR_daily_multiple_params():
     enddate = "1991-08-08"
     parameters = ['--parameters', 'sm', 'sm_uncertainty']
     land_points = 'True'
+    bbox = ['--bbox', '70', '10', '80', '20']
 
     with TemporaryDirectory() as ts_path:
         args = [inpath, ts_path, startdate, enddate]  + \
-               parameters + ['--land_points', land_points]
+               parameters + ['--land_points', land_points] + bbox
         main(args)
 
-        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 1002
+        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 5
 
-        ds = C3STs(ts_path, remove_nans=True, parameters=['sm', 'sm_uncertainty'], ioclass_kws={'read_bulk': True, 'read_dates': False})
+        ds = C3STs(ts_path, remove_nans=True, parameters=['sm', 'sm_uncertainty'],
+                   ioclass_kws={'read_bulk': True, 'read_dates': False})
         ts = ds.read(75.625, 14.625)
 
         assert not any(ts['sm'] == 0)
@@ -63,18 +63,17 @@ def test_reshuffle_ICDR_monthly_single_param():
                           "c3s_sm-test-data", "img2ts", "ICDR", "combined")
     startdate = "2018-05-01"
     enddate = "2018-08-01"
-    parameters = ['--parameters', "sm", "sensor"]
+    bbox = ['--bbox', '-170','50','-150','70']
 
     land_points = 'False'
     with TemporaryDirectory() as ts_path:
         args = [inpath, ts_path, startdate, enddate] \
-               + parameters + ['--land_points', land_points]
+               + ['--land_points', land_points] + bbox
         main(args)
 
+        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 17
 
-        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 2593
-
-        ds = C3STs(ts_path, remove_nans=True, parameters=['sm'], ioclass_kws={'read_bulk': True, 'read_dates': False})
+        ds = C3STs(ts_path, remove_nans=True, parameters=None, ioclass_kws={'read_bulk': True, 'read_dates': False})
         ts = ds.read(-159.625, 65.875)
         assert isinstance(ts.index, pd.DatetimeIndex)
         ts_sm_values_should = np.array([0.23628984, 0.33424062, np.nan, 0.26261818], dtype=np.float32)
@@ -85,4 +84,3 @@ def test_reshuffle_ICDR_monthly_single_param():
         nptest.assert_allclose(ts['sensor'].values, ts_sensor_values_should,rtol=1e-5)
 
         ds.close()
-
