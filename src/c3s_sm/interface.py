@@ -63,9 +63,9 @@ class C3SImg(ImageBase):
                  filename,
                  parameters=None,
                  mode='r',
-                 grid=SMECV_Grid_v052(None),
+                 subgrid=SMECV_Grid_v052(None),
                  flatten=False,
-                 fillval=np.nan):
+                 fillval=None):
         """
         Parameters
         ----------
@@ -76,13 +76,13 @@ class C3SImg(ImageBase):
             If None are passed, all are read.
         mode : str, optional (default: 'r')
             Netcdf file mode, choosing something different to r may delete data.
-        grid : pygeogrids.CellGrid, optional (default: SMECV_Grid_v052(None))
-            Subgrid of point to read the data for, to read 2d arrays, this
-            must have a 2d shape assigned.
+        subgrid : SMECV_Grid_v052
+            A subgrid of points to read. All other GPIS are masked (2d reading)
+            or ignored (when flattened).
         flatten: bool, optional (default: False)
             If set then the data is read into 1D arrays. This is used to e.g
             reshuffle the data for a subset of points.
-        fillval : flot or dict or None, optional (default: np.nan)
+        fillval : float or dict or None, optional (default: np.nan)
             Fill Value for masked pixels, if a dict is passed, this can be
             set for each parameter individually, otherwise it applies to all.
             Note that choosing np.nan can lead to a change in dtype for some
@@ -99,10 +99,11 @@ class C3SImg(ImageBase):
             parameters = [parameters]
 
         self.parameters = parameters
-        self.grid = grid
-        self.flatten = flatten
 
-        self.grid = grid
+        self.subgrid = subgrid # subset to read
+        self.grid = SMECV_Grid_v052(None) # global input image
+
+        self.flatten = flatten
 
         self.image_missing = False
         self.img = None  # to be loaded
@@ -116,32 +117,9 @@ class C3SImg(ImageBase):
         else:
             self.fillval ={p: fillval for p in self.parameters}
 
-    def __read_empty_flat_image(self) -> (dict, dict):
+    def _read_flat_img(self) -> (dict, dict, dict, datetime):
         """
-        Create an empty image for filling missing dates, this is necessary
-        for reshuffling as img2ts cannot handle missing days.
-        """
-        self.image_missing = True
-
-        return_img = {}
-        return_metadata = {}
-
-        yres, xres = self.grid.shape
-
-        for param in self.parameters:
-            if param in self.fillval.keys():
-                fill_val = self.fillval[param]
-            else:
-                warnings.warn(f"No fill value defined, fill {param} with np.nan")
-                fill_val = np.nan
-            return_img[param] = np.full((yres, xres), fill_val).flatten()
-            return_metadata[param] = {'image_missing': 1}
-
-        return return_img, return_metadata
-
-    def __read_flat_img(self) -> (dict, dict, dict, datetime):
-        """
-        Reads a single C3S image.
+        Reads a single C3S image, flat with gpi0 as first element
         """
         with Dataset(self.filename, mode='r') as ds:
             timestamp = num2date(ds['time'], ds['time'].units,
@@ -164,24 +142,32 @@ class C3SImg(ImageBase):
             for parameter in parameters:
                 metadata = {}
                 param = ds.variables[parameter]
-                data = param[:]
+                data = param[:][0] # there is only 1 time stamp in the image
+
+                self.shape = (data.shape[0], data.shape[1])
 
                 # read long name, FillValue and unit
                 for attr in param.ncattrs():
                     metadata[attr] = param.getncattr(attr)
 
-                if (parameter in self.fillval) and (self.fillval[parameter] is not None):
-                    try:
-                        data = data.filled(fill_value=self.fillval[parameter])
-                    except TypeError: # trying to fill with incompatible type, change type
-                        dtype = type(self.fillval[parameter])
-                        data = data.astype(dtype).filled(self.fillval[parameter])
+                if parameter in self.fillval:
+                    if self.fillval[parameter] is None:
+                        self.fillval[parameter] = data.fill_value
+
+                    common_dtype = np.find_common_type(
+                        array_types=[data.dtype],
+                        scalar_types=[type(self.fillval[parameter])])
+                    self.fillval[parameter] = np.array([self.fillval[parameter]],
+                                                       dtype=common_dtype)[0]
+
+                    data = data.astype(common_dtype)
+                    data = data.filled(self.fillval[parameter])
                 else:
+                    self.fillval[parameter] = data.fill_value
                     data = data.filled()
 
-                self.shape = (data.shape[1], data.shape[2])
-
-                data = np.flipud(data).flatten()
+                data = np.flipud(data)
+                data = data.flatten()
 
                 metadata['image_missing'] = 0
 
@@ -193,8 +179,8 @@ class C3SImg(ImageBase):
 
         return param_img, param_meta, global_attrs, timestamp
 
-    def __mask_and_reshape(self,
-                           data: dict) -> dict:
+    def _mask_and_reshape(self,
+                          data: dict) -> dict:
         """
         Takes the grid and drops points that are not active.
         for flattened arrays that means that only the active gpis are kept.
@@ -210,7 +196,7 @@ class C3SImg(ImageBase):
         Returns
         -------
         dat : dict
-            Masked, reshaped and potentially cropped data.
+            Masked, reshaped data.
         """
 
         # check if flatten. if flatten, dont crop and dont reshape
@@ -219,9 +205,10 @@ class C3SImg(ImageBase):
         # select active gpis
         for param, dat in data.items():
             if self.flatten:
-                dat = dat[self.grid.activegpis]
+                dat = dat[self.subgrid.activegpis]
             else:
-                dat[~np.isin(self.grid.gpis, self.grid.activegpis)] = self.fillval[param]
+                exclude = (~np.isin(self.grid.gpis, self.subgrid.activegpis))
+                dat[exclude] = self.fillval[param]
                 if len(self.shape) != 2:
                     raise ValueError(
                         "Reading 2d image needs grid with 2d shape"
@@ -236,36 +223,52 @@ class C3SImg(ImageBase):
 
     def read(self, timestamp=None):
         """
-        Read a single SMOS image, if it exists, otherwise fill an empty image
+        Read a single C3S image, if it exists, otherwise fill an empty image.
+
+        Parameters
+        ----------
+        timestamp : datetime, optional (default: None)
+            Time stamp of the image, if this is passed, it is compared to
+            the time stamp from the loaded file and must match
         """
-        try:
-            data, var_meta, glob_meta, img_timestamp = self.__read_flat_img()
-        except IOError:
-            warnings.warn(f'Error loading image for {os.path.join(self.path, self.fname)}. '
-                          'Generating empty image instead')
-            data, var_meta = self.__read_empty_flat_image()
-            global_meta, img_timestamp = {}, None
+
+        data, var_meta, glob_meta, img_timestamp = self._read_flat_img()
 
         if timestamp is not None:
             if img_timestamp is None:
                 img_timestamp = timestamp
             assert img_timestamp == timestamp, "Time stamps do not match"
 
-        data = self.__mask_and_reshape(data)
+        # when flattened, this drops already all non-active gpis
+        data = self._mask_and_reshape(data)
 
         if self.flatten:
-            return Image(self.grid.activearrlon,
-                         np.flipud(self.grid.activearrlat),
+            return Image(self.subgrid.activearrlon,
+                         self.subgrid.activearrlat,
                          data,
                          var_meta,
                          timestamp)
         else:
-            return Image(self.grid.arrlon.reshape(*self.shape),
-                         self.grid.arrlat.reshape(*self.shape),
-                         data,
+            # also cut 2d case to active area
+            min_lat, min_lon = self.subgrid.activearrlat.min(), \
+                               self.subgrid.activearrlon.min()
+            max_lat, max_lon = self.subgrid.activearrlat.max(), \
+                               self.subgrid.activearrlon.max()
+
+            corners = self.grid.gpi2rowcol([
+                self.grid.find_nearest_gpi(min_lon, min_lat)[0], # llc
+                self.grid.find_nearest_gpi(max_lon, min_lat)[0], # lrc
+                self.grid.find_nearest_gpi(max_lon, max_lat)[0], # urc
+                ])
+
+            rows = slice(corners[0][0], corners[0][2] + 1)
+            cols = slice(corners[1][0], corners[1][1] + 1)
+
+            return Image(self.grid.arrlon.reshape(*self.shape)[rows, cols],
+                         np.flipud(self.grid.arrlat.reshape(*self.shape)[rows, cols]),
+                         {k: np.flipud(v[rows, cols]) for k, v in data.items()},
                          var_meta,
                          timestamp)
-
 
     def write(self, *args, **kwargs):
         pass
@@ -284,11 +287,11 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
     def __init__(self,
                  data_path,
                  parameters='sm',
-                 grid=SMECV_Grid_v052(None),
+                 subgrid=SMECV_Grid_v052(None),
                  flatten=False,
                  solve_ambiguity='sort_last',
                  subpath_templ=('%Y',),
-                 fillval=np.nan):
+                 fillval=None):
         """
         Parameters
         ----------
@@ -310,16 +313,17 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
                     in case that multiple files are found.
         subpath_templ : list, optional (default: ['%Y'])
             List of subdirectory names to build file paths.
-        fillval : flot or dict or None, optional (default: np.nan)
+        fillval : float or dict or None, optional (default: None)
             Fill Value for masked pixels, if a dict is passed, this can be
             set for each parameter individually, otherwise it applies to all.
             Note that choosing np.nan can lead to a change in dtype for some
-            (int) parameters. None will use the fill value from the netcdf file
+            parameters (int to float).
+            None will use the fill value from the netcdf file
         """
 
         self.data_path = data_path
         ioclass_kwargs = {'parameters': parameters,
-                          'grid': grid,
+                          'subgrid': subgrid,
                           'flatten': flatten,
                           'fillval': fillval}
 
@@ -330,12 +334,34 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
         fn_args['cdr'] = '*'
         filename_templ = fntempl.format(**fn_args)
 
-        super(C3S_Nc_Img_Stack, self).__init__(path=data_path, ioclass=C3SImg,
+        super(C3S_Nc_Img_Stack, self).__init__(path=data_path,
+                                               ioclass=C3SImg,
                                                fname_templ=filename_templ ,
                                                datetime_format="%Y%m%d%H%M%S",
                                                subpath_templ=subpath_templ,
                                                exact_templ=False,
                                                ioclass_kws=ioclass_kwargs)
+
+    def _read_empty_flat_image(self) -> (dict, dict):
+        """
+        Create an empty image for filling missing dates, this is necessary
+        for reshuffling as img2ts cannot handle missing days.
+        """
+        return_img = {}
+        return_metadata = {}
+
+        yres, xres = self.grid.shape
+
+        for param in self.parameters:
+            if param in self.fillval.keys():
+                fill_val = self.fillval[param]
+            else:
+                warnings.warn(f"No fill value defined, fill {param} with np.nan")
+                fill_val = np.nan
+            return_img[param] = np.full((yres, xres), fill_val).flatten()
+            return_metadata[param] = {'image_missing': 1}
+
+        return return_img, return_metadata
 
     def _build_filename(self, timestamp:datetime, custom_templ:str=None,
                         str_param:dict=None):
@@ -437,6 +463,26 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
             timestamps.append(next(timestamps[-1]))
 
         return timestamps
+
+    def read(self, timestamp, **kwargs):
+        """
+        Return an image for a specific timestamp.
+
+        Parameters
+        ----------
+        timestamp : datetime.datetime
+            Time stamp.
+
+        Returns
+        -------
+        image : object
+            pygeobase.object_base.Image object
+        """
+        try:
+            img = self._assemble_img(timestamp, **kwargs)
+        except IOError:
+            warnings.warn(f'Error loading image for {timestamp}. '
+                           'Skip.')
 
 class C3STs(GriddedNcOrthoMultiTs):
     """
@@ -541,61 +587,6 @@ class C3STs(GriddedNcOrthoMultiTs):
                 data = data.replace(-9999.0000, np.nan)
             return data
 
-    def read_cell_cube(self, cell:int, dt_index:pd.Index, params:list,
-                       param_fill_val: dict = None, param_scalf: dict = None,
-                       jd0_unit='datetime', to_replace=None,
-                       bit_valid_range=None, bit_rainforest=None,
-                       as_xr=False):
-        """
-        Read a regular subcube of cell data. I.e. missing GPIs (and cells)
-        are filled with the passed fill values. Returned data is always of
-        shape (dt_index.size, 20, 20) for 5DEG cells.
-
-        Parameters
-        ----------
-        cell : int
-            Number of the cell (file) to read.
-        dt_index : pd.Index
-            DateTime index that is used in case a point has no data.
-        params : list
-            List of parameter names to read from file
-        param_fill_val : dict, optional (default: None)
-            Parameter names and fill values to use in the loaded time series
-        param_scalf : dict, optional (default: None)
-            Parameter names and scale factors, i.e. values that a parameter
-            time series is multiplied with after reading.
-        jd0_unit : str, optional (default: None)
-            Unit to convert jd to.
-            None to use the orignal values, datetime to convert to datetime
-            or a string that is given as unit to date2num
-        to_replace : dict, optional (default: None)
-            See read_agg_cell_data fuction
-        bit_valid_range : int, optional (default: None)
-            SM values > 100 and < 0 are replaced with fill values for ALL 3 products.
-            If a bit is passed here (e.g. bit_out_of_range, e.g. 4), the bit is
-            added to the flag column value.
-        bit_rainforest : int, optional (default: None)
-            bit flag that defines rainforest points (dense vegetation, e.g. 2).
-            If None is passed the original flag values are kept.
-            Replace sm/sm_uncertainty values with NaN for all points that
-            are marked as rainforest in grid. Add dense veg bit to flag.
-        as_xr : bool, optional (default: False)
-            Return data as xarray dataset (instead of a dictionary)
-
-        Returns
-        -------
-        data : xr.Dataset or dict
-        coords : dict, optional (only when as_xr is false)
-            Coordinates of the pixels
-
-        """
-        if not xr_supported:
-            print("xarray is not installed.")
-            return
-
-        file_path = os.path.join(self.path, '{}.nc'.format("%04d" % (cell,)))
-        ds = xr.open_dataset(file_path)
-
     def iter_ts(self, **kwargs):
         pass
 
@@ -603,7 +594,13 @@ class C3STs(GriddedNcOrthoMultiTs):
         pass
 
 if __name__ == '__main__':
-    img = C3SImg("//home/wolfgang/data-read/temp/c3s/2020/C3S-SOILMOISTURE-L3S-SSMV-COMBINED-DAILY-20200102000000-ICDR-v201912.0.0.nc",
-                           parameters=['sm', 'flag'], grid=SMECV_Grid_v052().subgrid_from_bbox(-5, 10, 10, 50), flatten=True)
+
+    img = C3SImg(r"R:\Datapool\C3S\01_raw\temp\060_daily_images\combined\2010\C3S-SOILMOISTURE-L3S-SSMV-COMBINED-20100118000000-fv202012.nc",
+                 parameters=None,
+                 subgrid=SMECV_Grid_v052('landcover_class', subset_value=[10,11])
+                        .subgrid_from_bbox(-14, 30, 44, 73),
+                 flatten=False,
+                 fillval=None
+                 )
     dat = img.read()
 
