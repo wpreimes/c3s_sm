@@ -290,7 +290,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
                  subgrid=SMECV_Grid_v052(None),
                  flatten=False,
                  solve_ambiguity='sort_last',
-                 subpath_templ=('%Y',),
+                 subpath_templ=None,
                  fillval=None):
         """
         Parameters
@@ -311,8 +311,9 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
                     name, in case that multiple files are found.
                 - sort_first: uses the first file when sorted by file name
                     in case that multiple files are found.
-        subpath_templ : list, optional (default: ['%Y'])
-            List of subdirectory names to build file paths.
+        subpath_templ : list or None, optional (default: None)
+            List of subdirectory names to build file paths. e.g. ['%Y'] if files
+            in collected by years.
         fillval : float or dict or None, optional (default: None)
             Fill Value for masked pixels, if a dict is passed, this can be
             set for each parameter individually, otherwise it applies to all.
@@ -342,27 +343,6 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
                                                exact_templ=False,
                                                ioclass_kws=ioclass_kwargs)
 
-    def _read_empty_flat_image(self) -> (dict, dict):
-        """
-        Create an empty image for filling missing dates, this is necessary
-        for reshuffling as img2ts cannot handle missing days.
-        """
-        return_img = {}
-        return_metadata = {}
-
-        yres, xres = self.grid.shape
-
-        for param in self.parameters:
-            if param in self.fillval.keys():
-                fill_val = self.fillval[param]
-            else:
-                warnings.warn(f"No fill value defined, fill {param} with np.nan")
-                fill_val = np.nan
-            return_img[param] = np.full((yres, xres), fill_val).flatten()
-            return_metadata[param] = {'image_missing': 1}
-
-        return return_img, return_metadata
-
     def _build_filename(self, timestamp:datetime, custom_templ:str=None,
                         str_param:dict=None):
         """
@@ -388,6 +368,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
         if len(filename) == 0:
             raise IOError("No file found for {:}".format(timestamp.ctime()))
         if len(filename) > 1:
+            filename = sorted(filename)
             if self.solve_ambiguity == 'sort_last':
                 warnings.warn(f'Ambiguous file for {str(timestamp)} found.'
                               f' Sort and use last: {filename[-1]}, skipped {filename[:-1]}')
@@ -480,9 +461,10 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
         """
         try:
             img = self._assemble_img(timestamp, **kwargs)
+            return img
         except IOError:
-            warnings.warn(f'Error loading image for {timestamp}. '
-                           'Skip.')
+            warnings.warn(f'Could not load image for {timestamp}.')
+            raise IOError
 
 class C3STs(GriddedNcOrthoMultiTs):
     """
@@ -594,6 +576,8 @@ class C3STs(GriddedNcOrthoMultiTs):
         pass
 
 if __name__ == '__main__':
+    ds = C3S_Nc_Img_Stack("/home/wolfgang/data-read/temp/c3s/")
+    img = ds.read(datetime(2019, 12, 31))
 
     img = C3SImg(r"R:\Datapool\C3S\01_raw\temp\060_daily_images\combined\2010\C3S-SOILMOISTURE-L3S-SSMV-COMBINED-20100118000000-fv202012.nc",
                  parameters=None,
