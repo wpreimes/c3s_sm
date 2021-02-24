@@ -24,7 +24,7 @@ except ImportError:
 
 class C3S_DataCube:
     """
-    TODO
+    Builds a xarray stack / data cube of C3S images
     """
     def __init__(self,
                  data_root,
@@ -38,7 +38,6 @@ class C3S_DataCube:
                  log_level=logging.WARNING,
                  **kwargs):
         """
-
         Parameters
         ----------
         data_root : str or Path
@@ -132,11 +131,6 @@ class C3S_DataCube:
                       f"c3slog_{datetime.now().strftime('%Y%m%d%H%M%S')}.log")
 
         logging.basicConfig(**kwargs)
-        # ch = logging.StreamHandler()
-        # ch.setLevel(level)
-        # formatter = logging.Formatter()
-        # ch.setFormatter(formatter)
-        # logger.addHandler(ch)
 
     def _gen_grid(self, lats:np.array, lons:np.array, cellsize:float) -> CellGrid:
         lats, lons = np.meshgrid(lats, lons)
@@ -234,6 +228,7 @@ if __name__ == '__main__':
     ds = C3S_DataCube(r"C:\Temp\delete_me\c3s_sm\img",
                       chunks='unlimited', clip_dates=('2000-01-01', '2020-12-31'),
                       log_to='std_out', log_level=logging.INFO)
+
     #ds.write_stack(r"C:\Temp\c3s\stacks\combined_2000.nc")
     #ts = ds.read_ts(45,15)
     ts1 = ds.read_ts(792743)
