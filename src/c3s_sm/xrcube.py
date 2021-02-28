@@ -147,7 +147,6 @@ class C3S_DataCube:
 
         return slice_lat, slice_lon
 
-
     def _filter_files(self, start_date:datetime=None, end_date:datetime=None) -> list:
         if start_date is None:
             start_date = datetime(1978, 1, 1)

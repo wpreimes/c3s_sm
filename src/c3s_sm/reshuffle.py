@@ -115,8 +115,12 @@ def reshuffle(input_root, outputpath, startdate, enddate,
         parameters = [p for p in file_vars if p not in ['lat', 'lon', 'time']]
 
     subpath_templ = ('%Y',) if os.path.isdir(os.path.join(input_root, str(startdate.year))) else None
-    input_dataset = C3S_Nc_Img_Stack(data_path=input_root, parameters=parameters,
-                                     subgrid=grid, flatten=True, subpath_templ=subpath_templ)
+    input_dataset = C3S_Nc_Img_Stack(data_path=input_root,
+                                     parameters=parameters,
+                                     subgrid=grid,
+                                     flatten=True,
+                                     fillval=None,
+                                     subpath_templ=subpath_templ)
 
     prod_args = input_dataset.fname_args
 
@@ -231,11 +235,11 @@ def run():
     main(sys.argv[1:])
 
 if __name__ == '__main__':
-    input_root = "//home/wolfgang/data-read/temp/c3s/bad_data/"
-    outputpath = "/home/wolfgang/data-write/temp/c3s/ts/"
+    input_root = r"C:\Temp\delete_me\c3s_sm\img"
+    outputpath = r"C:\Temp\delete_me\c3s_sm\ts"
 
     parse_filename(input_root)
 
-    reshuffle(input_root, outputpath, datetime(2020,1,1), datetime(2020,1,3),
+    reshuffle(input_root, outputpath, datetime(2018,1,1), datetime(2018,1,10),
               parameters=None, land_points=True, bbox=(-30, 30, 30, 70),
               imgbuffer=500)
