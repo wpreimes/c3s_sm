@@ -53,7 +53,6 @@ except ImportError:
 
 fntempl = "C3S-SOILMOISTURE-L3S-SSM{unit}-{prod}-{temp}-{datetime}-{cdr}-{vers}.{subvers}.nc"
 
-import matplotlib.pyplot as plt
 
 class C3SImg(ImageBase):
     """
@@ -485,9 +484,13 @@ class C3STs(GriddedNcOrthoMultiTs):
             Path to grid file, that is used to organize the location of time
             series to read. If None is passed, grid.nc is searched for in the
             ts_path.
-        remove_nans : bool, optional (default: False)
-            Replace -9999 with np.nan in time series
-        trop_tz: bool, optional (default: True)
+        remove_nans : bool or dict, optional (default: False)
+            Replace fill values in SM time series. Either
+                - dict of form {parameter: {val_to_replace: replacement_val}, ... }
+                - dict of form {parameter : val_to_set_NaN ...}
+                - True to replace -9999 with nan anywhere
+                - False to do nothing
+        drop_tz: bool, optional (default: True)
             Drop time zone information from time series
 
         Optional keyword arguments that are passed to the Gridded Base:
@@ -511,6 +514,11 @@ class C3STs(GriddedNcOrthoMultiTs):
                         num2date routine is very slow for big datasets
         """
 
+        if isinstance(remove_nans, dict):
+            for var, is_should in remove_nans.copy().items():
+                if not isinstance(is_should, dict):
+                    remove_nans[var] = {is_should: np.nan}
+
         self.remove_nans = remove_nans
 
         if grid_path is None:
@@ -530,7 +538,10 @@ class C3STs(GriddedNcOrthoMultiTs):
             return None
 
         if self.remove_nans:
-            ts = ts.replace(-9999.0000, np.nan)
+            if self.remove_nans == True:
+                ts = ts.replace(-9999.0000, np.nan)
+            else:
+                ts = ts.replace(self.remove_nans)
 
         if not self.drop_tz:
             ts.index = ts.index.tz_localize('UTC')
@@ -566,7 +577,10 @@ class C3STs(GriddedNcOrthoMultiTs):
             variable = np.transpose(variable)
             data = pd.DataFrame(variable, columns=loc_id, index=time)
             if self.remove_nans:
-                data = data.replace(-9999.0000, np.nan)
+                if self.remove_nans == True:
+                    data = data.replace(-9999, np.nan)
+                else:
+                    data = data.replace(self.remove_nans)
             return data
 
     def iter_ts(self, **kwargs):
@@ -576,6 +590,12 @@ class C3STs(GriddedNcOrthoMultiTs):
         pass
 
 if __name__ == '__main__':
+
+    path = r"C:\Temp\delete_me\c3s_sm\ts"
+
+    ds = C3STs(path, remove_nans={'sm': {-9999: np.nan}, 'mode': {0: np.nan}})
+    ts = ds.read(15,45)
+
     ds = C3S_Nc_Img_Stack("/home/wolfgang/data-read/temp/c3s/")
     img = ds.read(datetime(2019, 12, 31))
 
