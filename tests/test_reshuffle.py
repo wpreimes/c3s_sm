@@ -9,25 +9,26 @@ import numpy.testing as nptest
 from c3s_sm.reshuffle import main, parse_filename
 from c3s_sm.interface import C3STs
 import pandas as pd
+import pytest
 
 def test_parse_filename():
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "c3s_sm-test-data", "img2ts", "ICDR", "combined")
+                          "c3s_sm-test-data", "img2ts", "combined")
 
     file_args, file_vars = parse_filename(inpath)
 
     assert file_args['unit'] == 'V'
     assert file_args['prod'] == 'COMBINED'
     assert file_args['temp'] == 'MONTHLY'
-    assert file_args['cdr'] == 'ICDR'
-    assert file_args['vers'] == 'v201706'
+    assert file_args['cdr'] == 'TCDR'
+    assert file_args['vers'] == 'v201912'
     assert file_args['subvers'] == '0.0'
 
     assert file_vars == [u'lat', u'lon', u'time', u'nobs', u'sensor', u'freqbandID', u'sm']
 
 def test_reshuffle_TCDR_daily_multiple_params():
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "c3s_sm-test-data", "img2ts", "TCDR", "active")
+                          "c3s_sm-test-data", "img2ts", "active")
     startdate = "1991-08-05"
     enddate = "1991-08-08"
     parameters = ['--parameters', 'sm', 'sm_uncertainty']
@@ -58,29 +59,36 @@ def test_reshuffle_TCDR_daily_multiple_params():
 
         ds.close()
 
-def test_reshuffle_ICDR_monthly_single_param():
+@pytest.mark.parametrize("ignore_meta", [True, False])
+def test_reshuffle_ICDR_monthly_single_param(ignore_meta):
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "c3s_sm-test-data", "img2ts", "ICDR", "combined")
-    startdate = "2018-05-01"
-    enddate = "2018-08-01"
-    bbox = ['--bbox', '-170','50','-150','70']
+                          "c3s_sm-test-data", "img2ts", "combined")
+    startdate = "2019-10-01"
+    enddate = "2020-01-31"
 
-    land_points = 'False'
     with TemporaryDirectory() as ts_path:
-        args = [inpath, ts_path, startdate, enddate] \
-               + ['--land_points', land_points] + bbox
+        args = [inpath,
+                ts_path,
+                startdate,
+                enddate] \
+               + ['--land_points', 'False'] \
+               + ['--bbox', '-10', '40', '10', '50'] \
+               + ['--ignore_meta', str(ignore_meta)]
         main(args)
 
-        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 17
+        assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 9
 
         ds = C3STs(ts_path, remove_nans=True, parameters=None, ioclass_kws={'read_bulk': True, 'read_dates': False})
-        ts = ds.read(-159.625, 65.875)
+        ts = ds.read(4.125, 46.875)
+        assert not np.any(ts['sm'] == 0)  # in corrupt file
+        assert not np.any(ts['sensor'] < 0)  # in corrupt file
         assert isinstance(ts.index, pd.DatetimeIndex)
-        ts_sm_values_should = np.array([0.23628984, 0.33424062, np.nan, 0.26261818], dtype=np.float32)
+        assert ts.index.size == 3
+        ts_sm_values_should = np.array([0.291388, 0.328116, 0.316130], dtype=np.float32)
 
         nptest.assert_allclose(ts['sm'].values, ts_sm_values_should, rtol=1e-5)
 
-        ts_sensor_values_should = np.array([768, 768, 768, 768 ], dtype=np.float32)
+        ts_sensor_values_should = np.array([768, 768, 256], dtype=np.float32)
         nptest.assert_allclose(ts['sensor'].values, ts_sensor_values_should,rtol=1e-5)
 
         ds.close()

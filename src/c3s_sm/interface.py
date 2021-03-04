@@ -289,6 +289,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
                  subgrid=SMECV_Grid_v052(None),
                  flatten=False,
                  solve_ambiguity='sort_last',
+                 fntempl=fntempl,
                  subpath_templ=None,
                  fillval=None):
         """
@@ -310,6 +311,8 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
                     name, in case that multiple files are found.
                 - sort_first: uses the first file when sorted by file name
                     in case that multiple files are found.
+        filename_templ: str, optional
+            Filename template to parse datetime from.
         subpath_templ : list or None, optional (default: None)
             List of subdirectory names to build file paths. e.g. ['%Y'] if files
             in collected by years.
@@ -590,21 +593,13 @@ class C3STs(GriddedNcOrthoMultiTs):
         pass
 
 if __name__ == '__main__':
-
-    path = r"C:\Temp\delete_me\c3s_sm\ts"
-
-    ds = C3STs(path, remove_nans={'sm': {-9999: np.nan}, 'mode': {0: np.nan}})
-    ts = ds.read(15,45)
-
-    ds = C3S_Nc_Img_Stack("/home/wolfgang/data-read/temp/c3s/")
-    img = ds.read(datetime(2019, 12, 31))
-
-    img = C3SImg(r"R:\Datapool\C3S\01_raw\temp\060_daily_images\combined\2010\C3S-SOILMOISTURE-L3S-SSMV-COMBINED-20100118000000-fv202012.nc",
-                 parameters=None,
-                 subgrid=SMECV_Grid_v052('landcover_class', subset_value=[10,11])
-                        .subgrid_from_bbox(-14, 30, 44, 73),
-                 flatten=False,
-                 fillval=None
-                 )
-    dat = img.read()
+    root = r"R:\Projects\C3S_312b\08_scratch\v202012_ts2img\060_daily_images\passive"
+    old_template = r"C3S-SOILMOISTURE-L3S-SSMV-PASSIVE-{dt}000000-fv202012.nc"
+    new_tempate = "C3S-SOILMOISTURE-L3S-SSMV-PASSIVE-DAILY-{dt}000000-TCDR-v202012.0.0.nc"
+    
+    for year in os.listdir(root):
+        for f in os.listdir(os.path.join(root, year)):
+            dt = parse(old_template, f)['dt']
+            os.rename(os.path.join(root, year, f),
+                      os.path.join(root, year, new_tempate.format(dt=dt)))
 

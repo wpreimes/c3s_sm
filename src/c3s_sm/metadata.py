@@ -250,7 +250,13 @@ class C3S_SM_TS_Attrs_v201912(C3S_SM_TS_Attrs):
                                                       version)
 
 class C3S_SM_TS_Attrs_v202012(C3S_SM_TS_Attrs):
-    # smap added to sensors (no new freq band)
+    # smap added to sensors (no new freq band), based on cci v5
+    def __init__(self, sensor_type):
+
+        version = type(self).__name__.split('_')[-1]
+        super(C3S_SM_TS_Attrs_v202012, self).__init__(sensor_type,
+                                                      version)
+
     def sensor_flag(self):
         sensor_flag_dict = OrderedDict([
             ('0', 'NaN'),
@@ -273,7 +279,13 @@ class C3S_SM_TS_Attrs_v202012(C3S_SM_TS_Attrs):
         return self.sensor_flag_values, self.sensor_flag_meanings
 
 class C3S_SM_TS_Attrs_v202112(C3S_SM_TS_Attrs):
-    # gpm, fy3b added to sensors (no new freq band)
+    # gpm, fy3b added to sensors (no new freq band), based on cci v6
+    def __init__(self, sensor_type):
+
+        version = type(self).__name__.split('_')[-1]
+        super(C3S_SM_TS_Attrs_v202112, self).__init__(sensor_type,
+                                                      version)
+
     def sensor_flag(self):
         sensor_flag_dict = OrderedDict([
             ('0', 'NaN'),
