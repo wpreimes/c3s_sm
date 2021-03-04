@@ -16,7 +16,6 @@ from smecv_grid.grid import SMECV_Grid_v052
 from parse import parse
 from netCDF4 import Dataset
 
-
 def mkdate(datestring):
     """
     Create date string.
@@ -76,7 +75,7 @@ def parse_filename(data_dir):
 
 def reshuffle(input_root, outputpath, startdate, enddate,
               parameters=None, land_points=True, bbox=None,
-              imgbuffer=500):
+              ignore_meta=False, imgbuffer=500):
     """
     Reshuffle method applied to C3S data.
 
@@ -98,6 +97,9 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     bbox : tuple
         Min lon, min lat, max lon, max lat
         BBox to read data for.
+    ignore_meta : bool, optional (default: False)
+        Ignore metadata and reshuffle only the values. Can be used e.g. if a
+        version is not yet supported.
     imgbuffer: int, optional (default: 50)
         How many images to read at once before writing time series.
     """
@@ -122,24 +124,28 @@ def reshuffle(input_root, outputpath, startdate, enddate,
                                      fillval=None,
                                      subpath_templ=subpath_templ)
 
-    prod_args = input_dataset.fname_args
+    if not ignore_meta:
+        prod_args = input_dataset.fname_args
 
-    kwargs = {'sensor_type': prod_args['prod'].lower(),
-              'cdr_type': prod_args['cdr'],
-              'product_temp_res':  prod_args['temp'],
-              'cls': getattr(metadata, f"C3S_SM_TS_Attrs_{prod_args['vers']}")}
+        kwargs = {'sensor_type': prod_args['prod'].lower(),
+                  'cdr_type': prod_args['cdr'],
+                  'product_temp_res':  prod_args['temp'],
+                  'cls': getattr(metadata, f"C3S_SM_TS_Attrs_{prod_args['vers']}")}
 
-    if prod_args['temp'].upper() == 'DAILY':
-        kwargs.pop('product_temp_res')
-        attrs = C3S_daily_tsatt_nc(**kwargs)
+        if prod_args['temp'].upper() == 'DAILY':
+            kwargs.pop('product_temp_res')
+            attrs = C3S_daily_tsatt_nc(**kwargs)
+        else:
+            attrs = C3S_dekmon_tsatt_nc(**kwargs)
+
+        ts_attributes = {}
+        global_attributes = attrs.global_attr
+
+        for var in parameters:
+            ts_attributes.update(attrs.ts_attributes[var])
     else:
-        attrs = C3S_dekmon_tsatt_nc(**kwargs)
-
-    ts_attributes = {}
-    global_attributes = attrs.global_attr
-
-    for var in parameters:
-        ts_attributes.update(attrs.ts_attributes[var])
+        global_attributes = None
+        ts_attributes = None
 
     if not os.path.exists(outputpath):
         os.makedirs(outputpath)
@@ -198,7 +204,11 @@ def parse_args(args):
                               "Bounding Box (lower left and upper right corner) "
                               "of area to reshuffle (WGS84)"))
 
-    parser.add_argument("--imgbuffer", type=int, default=50,
+    parser.add_argument("--ignore_meta", type=str2bool, default='False',
+                        help=("Do not apply image metadata to the time series."
+                              "E.g. for unsupported data versions."))
+
+    parser.add_argument("--imgbuffer", type=int, default=200,
                         help=("How many images to read at once. Bigger "
                               "numbers make the conversion faster but "
                               "consume more memory."))
@@ -229,17 +239,13 @@ def main(args):
               args.parameters,
               land_points=args.land_points,
               bbox=args.bbox,
+              ignore_meta=args.ignore_meta,
               imgbuffer=args.imgbuffer)
 
 def run():
     main(sys.argv[1:])
 
 if __name__ == '__main__':
-    input_root = r"C:\Temp\delete_me\c3s_sm\img"
-    outputpath = r"C:\Temp\delete_me\c3s_sm\ts"
-
-    parse_filename(input_root)
-
-    reshuffle(input_root, outputpath, datetime(2018,1,1), datetime(2018,1,10),
-              parameters=None, land_points=True, bbox=(-30, 30, 30, 70),
-              imgbuffer=500)
+    reshuffle(r"R:\Projects\C3S_312b\08_scratch\v202012_ts2img\060_daily_images\combined",
+              r"R:\Projects\C3S_312b\08_scratch\v202012_ts2img\063_images_to_ts\combined-daily",
+              datetime(2000,1,1), datetime(2000,1,3))
