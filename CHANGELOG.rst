@@ -5,7 +5,9 @@ Changelog
 Version 0.X (unreleased)
 ========================
 
--
+- Allow reading and reshuffling spatial subsets (bbox)
+- Add support for new versions v201912, v202012
+- Add module to generate metadata for time series files
 
 Version 0.1.2
 =============
