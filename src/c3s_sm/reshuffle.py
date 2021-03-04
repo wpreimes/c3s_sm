@@ -8,20 +8,13 @@ import os
 import sys
 import argparse
 from datetime import datetime
-
 from repurpose.img2ts import Img2Ts
-from c3s_sm.interface import C3S_Nc_Img_Stack, c3s_filename_template
-from c3s_sm.grid import C3SLandGrid, C3SCellGrid
+from c3s_sm.interface import C3S_Nc_Img_Stack, fntempl
 import c3s_sm.metadata as metadata
 from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
-from pygeogrids.grids import BasicGrid
-
-import numpy as np
-
+from smecv_grid.grid import SMECV_Grid_v052
 from parse import parse
-
 from netCDF4 import Dataset
-
 
 def mkdate(datestring):
     """
@@ -31,6 +24,7 @@ def mkdate(datestring):
     ----------
     datestring : str
         Date string.
+
     Returns
     -------
     datestr : datetime
@@ -47,9 +41,8 @@ def str2bool(val):
     else:
         return False
 
-
 def parse_filename(data_dir):
-    '''
+    """
     Take the first file in the passed directory and use its file name to
     retrieve the product type, version number and variables in the file.
 
@@ -64,12 +57,11 @@ def parse_filename(data_dir):
         Parsed arguments from file name
     file_vars : list
         Names of parameters in the first detected file
-    '''
-    template = c3s_filename_template()
+    """
 
     for curr, subdirs, files in os.walk(data_dir):
-        for f in files:
-            file_args = parse(template, f)
+        for f in sorted(files):
+            file_args = parse(fntempl, f)
             if file_args is None:
                 continue
             else:
@@ -82,10 +74,11 @@ def parse_filename(data_dir):
 
 
 def reshuffle(input_root, outputpath, startdate, enddate,
-              parameters, land_points=True,
-              imgbuffer=50):
+              parameters=None, land_points=True, bbox=None,
+              ignore_meta=False, imgbuffer=500):
     """
     Reshuffle method applied to C3S data.
+
     Parameters
     ----------
     input_root: string
@@ -96,62 +89,66 @@ def reshuffle(input_root, outputpath, startdate, enddate,
         Start date.
     enddate : datetime
         End date.
-    parameters: list
+    parameters: list, optional (default: None)
         parameters to read and convert
     land_points : bool, optional (default: True)
         Use the land grid to calculate time series on.
         Leads to faster processing and smaller files.
+    bbox : tuple
+        Min lon, min lat, max lon, max lat
+        BBox to read data for.
+    ignore_meta : bool, optional (default: False)
+        Ignore metadata and reshuffle only the values. Can be used e.g. if a
+        version is not yet supported.
     imgbuffer: int, optional (default: 50)
         How many images to read at once before writing time series.
     """
 
     if land_points:
-        grid = C3SLandGrid()
+        grid = SMECV_Grid_v052('land')
     else:
-        grid = C3SCellGrid()
+        grid = SMECV_Grid_v052(None)
 
-    gpis, lons, lats, cells = grid.get_grid_points()
-    grid_vars = {'gpis': gpis, 'lons':lons, 'lats':lats}
-    # repurpose cannot handle masked arrays
-    for k, v in grid_vars.items(): # type v: np.ma.MaskedArray
-        if isinstance(v, np.ma.MaskedArray):
-            grid_vars[k] = v.filled()
-
-    grid = BasicGrid(lon=grid_vars['lons'], lat=grid_vars['lats'], gpis=grid_vars['gpis']).to_cell_grid(5.)
+    if bbox:
+        grid = grid.subgrid_from_bbox(*bbox)
 
     if parameters is None:
         file_args, file_vars = parse_filename(input_root)
         parameters = [p for p in file_vars if p not in ['lat', 'lon', 'time']]
 
-    input_dataset = C3S_Nc_Img_Stack(data_path=input_root, parameters=parameters,
-                                     subgrid=grid, array_1D=True)
+    subpath_templ = ('%Y',) if os.path.isdir(os.path.join(input_root, str(startdate.year))) else None
+    input_dataset = C3S_Nc_Img_Stack(data_path=input_root,
+                                     parameters=parameters,
+                                     subgrid=grid,
+                                     flatten=True,
+                                     fillval=None,
+                                     subpath_templ=subpath_templ)
 
-    prod_args = input_dataset.fname_args
+    if not ignore_meta:
+        prod_args = input_dataset.fname_args
 
+        kwargs = {'sensor_type': prod_args['prod'].lower(),
+                  'cdr_type': prod_args['cdr'],
+                  'product_temp_res':  prod_args['temp'],
+                  'cls': getattr(metadata, f"C3S_SM_TS_Attrs_{prod_args['vers']}")}
 
-    kwargs = {'product_sensor_type' : prod_args['sensor_type'].lower(),
-              'sub_version' : '.' + prod_args['sub_version'],
-              'product_sub_type': prod_args['sub_prod']}
+        if prod_args['temp'].upper() == 'DAILY':
+            kwargs.pop('product_temp_res')
+            attrs = C3S_daily_tsatt_nc(**kwargs)
+        else:
+            attrs = C3S_dekmon_tsatt_nc(**kwargs)
 
-    class_str = "C3S_SM_TS_Attrs_%s" % (prod_args['version'])
-    subattr = getattr(metadata, class_str)
+        ts_attributes = {}
+        global_attributes = attrs.global_attr
 
-    if prod_args['temp_res'] == 'DAILY':
-        attrs = C3S_daily_tsatt_nc(subattr, **kwargs)
+        for var in parameters:
+            ts_attributes.update(attrs.ts_attributes[var])
     else:
-        attrs = C3S_dekmon_tsatt_nc(subattr, **kwargs)
-
-    ts_attributes = {}
-    global_attributes = attrs.global_attr
-
-    # todo: attrs for all vars or only for the ones that TS were created for.
-    for var in parameters:
-        ts_attributes.update(attrs.ts_attributes[var])
-
+        global_attributes = None
+        ts_attributes = None
 
     if not os.path.exists(outputpath):
         os.makedirs(outputpath)
-
 
     reshuffler = Img2Ts(input_dataset=input_dataset, outputpath=outputpath,
                         startdate=startdate, enddate=enddate, input_grid=grid,
@@ -202,7 +199,16 @@ def parse_args(args):
                         help=("Set True to convert only land points as defined"
                               " in the C3s land mask (faster and less/smaller files)"))
 
-    parser.add_argument("--imgbuffer", type=int, default=50,
+    parser.add_argument("--bbox", type=float, default=None, nargs=4,
+                        help=("min_lon min_lat max_lon max_lat. "
+                              "Bounding Box (lower left and upper right corner) "
+                              "of area to reshuffle (WGS84)"))
+
+    parser.add_argument("--ignore_meta", type=str2bool, default='False',
+                        help=("Do not apply image metadata to the time series."
+                              "E.g. for unsupported data versions."))
+
+    parser.add_argument("--imgbuffer", type=int, default=200,
                         help=("How many images to read at once. Bigger "
                               "numbers make the conversion faster but "
                               "consume more memory."))
@@ -210,10 +216,8 @@ def parse_args(args):
     args = parser.parse_args(args)
     # set defaults that can not be handled by argparse
 
-    print("Converting data from {} to"
-          " {} into folder {}.".format(args.start.isoformat(),
-                                      args.end.isoformat(),
-                                      args.timeseries_root))
+    print(f"Converting data from {args.start.isoformat()} to"
+          f" {args.end.isoformat()} into folder {args.timeseries_root}.")
 
     return args
 
@@ -234,22 +238,14 @@ def main(args):
               args.end,
               args.parameters,
               land_points=args.land_points,
+              bbox=args.bbox,
+              ignore_meta=args.ignore_meta,
               imgbuffer=args.imgbuffer)
-
-
 
 def run():
     main(sys.argv[1:])
 
 if __name__ == '__main__':
-
-
-    cmd = [r'C:\Temp\tcdr\active_daily', r'C:\Temp\tcdr\ts',
-           '1991-08-05', '1991-08-10', '--land_points', 'True']
-    main(cmd)
-
-    from interface import C3STs
-
-    ds = C3STs(r'C:\Temp\tcdr\ts')
-    ds.read(47.875, 7.875)
-    run()
+    reshuffle(r"R:\Projects\C3S_312b\08_scratch\v202012_ts2img\060_daily_images\combined",
+              r"R:\Projects\C3S_312b\08_scratch\v202012_ts2img\063_images_to_ts\combined-daily",
+              datetime(2000,1,1), datetime(2000,1,3))

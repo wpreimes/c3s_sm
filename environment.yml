@@ -9,8 +9,8 @@ dependencies:
   - pip
   - pip:
     - pygeobase
-    - pynetcf
+    - pynetcf>=0.2.2
     - repurpose
     - parse
-    - smecv_grid
+    - smecv_grid==0.3
     - more_itertools
