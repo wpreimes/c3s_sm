@@ -8,6 +8,8 @@ import os
 import sys
 import argparse
 from datetime import datetime
+
+import pandas as pd
 from repurpose.img2ts import Img2Ts
 from c3s_sm.interface import C3S_Nc_Img_Stack, fntempl
 import c3s_sm.metadata as metadata
@@ -245,7 +247,3 @@ def main(args):
 def run():
     main(sys.argv[1:])
 
-if __name__ == '__main__':
-    reshuffle(r"R:\Projects\C3S_312b\08_scratch\v202012_ts2img\060_daily_images\combined",
-              r"R:\Projects\C3S_312b\08_scratch\v202012_ts2img\063_images_to_ts\combined-daily",
-              datetime(2000,1,1), datetime(2000,1,3))
