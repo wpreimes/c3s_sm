@@ -44,6 +44,7 @@ from netCDF4 import Dataset
 from pynetcf.time_series import GriddedNcOrthoMultiTs
 from datetime import datetime
 from parse import parse
+from cadati.dekad import dekad_index, dekad_startdate_from_date
 
 try:
     import xarray as xr
@@ -427,25 +428,22 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
 
         Returns
         -------
-        timestamps : list
+        timestamps : Iterator
             list of datetime objects of each available image between
             start_date and end_date
         """
 
         if self.fname_args['temp'] == 'MONTHLY':
-            next = lambda date : date + relativedelta(months=1)
+            timestamps = pd.date_range(start_date, end_date, freq='MS').to_pydatetime()
         elif self.fname_args['temp'] == 'DAILY':
-            next = lambda date : date + relativedelta(days=1)
+            timestamps = pd.date_range(start_date, end_date, freq='D').to_pydatetime()
         elif self.fname_args['temp'] == 'DEKADAL':
-            next = lambda date : date + relativedelta(days=10)
+            timestamps = dekad_index(start_date, end_date).to_pydatetime()
+            timestamps = [dekad_startdate_from_date(d) for d in timestamps]
         else:
             raise NotImplementedError
 
-        timestamps = [start_date]
-        while next(timestamps[-1]) <= end_date:
-            timestamps.append(next(timestamps[-1]))
-
-        return timestamps
+        return iter(timestamps)
 
     def read(self, timestamp, **kwargs):
         """
@@ -591,15 +589,3 @@ class C3STs(GriddedNcOrthoMultiTs):
 
     def write_ts(self, *args, **kwargs):
         pass
-
-if __name__ == '__main__':
-    root = r"R:\Projects\C3S_312b\08_scratch\v202012_ts2img\060_daily_images\passive"
-    old_template = r"C3S-SOILMOISTURE-L3S-SSMV-PASSIVE-{dt}000000-fv202012.nc"
-    new_tempate = "C3S-SOILMOISTURE-L3S-SSMV-PASSIVE-DAILY-{dt}000000-TCDR-v202012.0.0.nc"
-    
-    for year in os.listdir(root):
-        for f in os.listdir(os.path.join(root, year)):
-            dt = parse(old_template, f)['dt']
-            os.rename(os.path.join(root, year, f),
-                      os.path.join(root, year, new_tempate.format(dt=dt)))
-
