@@ -16,14 +16,14 @@ def test_c3s_timestamp_for_daterange():
     ds = C3S_Nc_Img_Stack(path, parameters, fillval={'sm': np.nan}, solve_ambiguity='error')
 
 
-    tstamps = ds.tstamps_for_daterange(datetime(2000, 1, 1),
-                                       datetime(2000, 1, 5))
-    assert len(tstamps) == 5
-    assert tstamps == [datetime(2000, 1, 1),
-                       datetime(2000, 1, 2),
-                       datetime(2000, 1, 3),
-                       datetime(2000, 1, 4),
-                       datetime(2000, 1, 5)]
+    tstamps = [t for t in ds.tstamps_for_daterange(datetime(2000, 1, 1),
+                                                   datetime(2000, 1, 5))]
+    assert len(list(tstamps)) == 5
+    assert list(tstamps) == [datetime(2000, 1, 1),
+                             datetime(2000, 1, 2),
+                             datetime(2000, 1, 3),
+                             datetime(2000, 1, 4),
+                             datetime(2000, 1, 5)]
 
 def test_c3s_img_stack_single_img_reading():
     parameters = ['sm']
@@ -106,8 +106,8 @@ def test_c3s_img_stack_multiple_img_reading_ICDR():
 
 
 if __name__ == '__main__':
+
+    test_c3s_timestamp_for_daterange()
     test_c3s_img_stack_multiple_img_reading_TCDR()
     test_c3s_img_stack_single_img_reading()
     test_c3s_img_stack_multiple_img_reading_ICDR()
-    test_c3s_timestamp_for_daterange()
-

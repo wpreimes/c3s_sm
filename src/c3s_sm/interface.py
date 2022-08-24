@@ -428,7 +428,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
 
         Returns
         -------
-        timestamps : list
+        timestamps : Iterator
             list of datetime objects of each available image between
             start_date and end_date
         """
@@ -443,7 +443,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
         else:
             raise NotImplementedError
 
-        return timestamps
+        return iter(timestamps)
 
     def read(self, timestamp, **kwargs):
         """
