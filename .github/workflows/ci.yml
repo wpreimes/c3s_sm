@@ -74,7 +74,7 @@ jobs:
         shell: bash -l {0}
         run: |
           git status
-          pip install setuptools_scm
+          pip install -U setuptools_scm
           if [ ${{ matrix.os }} == "windows-latest" ]
           then
             # build whls on windows
