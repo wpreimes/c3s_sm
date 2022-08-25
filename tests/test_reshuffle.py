@@ -5,6 +5,7 @@ import glob
 from tempfile import TemporaryDirectory
 import numpy as np
 import numpy.testing as nptest
+from netCDF4 import Dataset
 
 from c3s_sm.reshuffle import main, parse_filename
 from c3s_sm.interface import C3STs
@@ -47,10 +48,9 @@ def test_reshuffle_TCDR_daily_multiple_params():
                    ioclass_kws={'read_bulk': True, 'read_dates': False})
         loc = 75.625, 14.625
         cell = ds.grid.gpi2cell(ds.grid.find_nearest_gpi(*loc)[0])
-        xrds = xr.open_dataset(os.path.join(ts_path, f'{cell:04}.nc'))
-        assert xrds['sm'].attrs['units'] == "percentage (%)"
-        assert xrds['sm_uncertainty'].attrs['name'] == "sm_uncertainty"
-        xrds.close()
+        with Dataset(os.path.join(ts_path, f'{cell:04}.nc')) as xrds:
+            assert xrds['sm'].getncattr('units') == "percentage (%)"
+            assert xrds['sm_uncertainty'].getncattr('name') == "sm_uncertainty"
         ts = ds.read(*loc)
 
         assert not any(ts['sm'] == 0)
@@ -88,14 +88,13 @@ def test_reshuffle_ICDR_monthly_single_param(ignore_meta):
         ds = C3STs(ts_path, remove_nans=True, parameters=None, ioclass_kws={'read_bulk': True, 'read_dates': False})
         loc = 4.125, 46.875
         cell = ds.grid.gpi2cell(ds.grid.find_nearest_gpi(*loc)[0])
-        dsxr = xr.open_dataset(os.path.join(ts_path, f'{cell:04}.nc'))
-        if ignore_meta:
-            with pytest.raises(KeyError):
-                _ = dsxr['sm'].attrs['units']
-        else:
-            assert dsxr['sm'].attrs['units'] == "m3 m-3"
-            assert dsxr['freqbandID'].attrs['name'] == "freqbandID"
-        dsxr.close()
+        with Dataset(os.path.join(ts_path, f'{cell:04}.nc')) as xrds:
+            if ignore_meta:
+                with pytest.raises(AttributeError):
+                    _ = xrds['sm'].getncattr('units')
+            else:
+                assert xrds['sm'].getncattr('units') == "m3 m-3"
+                assert xrds['freqbandID'].getncattr('name') == "freqbandID"
         ts = ds.read(*loc)
         assert not np.any(ts['sm'] == 0)  # in corrupt file
         assert not np.any(ts['sensor'] < 0)  # in corrupt file
