@@ -17,3 +17,4 @@ dependencies:
     - more_itertools
     - pytest
     - pytest-cov
+    - sphinx_rtd_theme
