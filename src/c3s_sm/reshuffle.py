@@ -96,7 +96,7 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     land_points : bool, optional (default: True)
         Use the land grid to calculate time series on.
         Leads to faster processing and smaller files.
-    bbox : tuple
+    bbox : tuple, optional (default: None)
         Min lon, min lat, max lon, max lat
         BBox to read data for.
     ignore_meta : bool, optional (default: False)
@@ -144,7 +144,7 @@ def reshuffle(input_root, outputpath, startdate, enddate,
         global_attributes = attrs.global_attr
 
         for var in parameters:
-            ts_attributes.update(attrs.ts_attributes[var])
+            ts_attributes[var] = attrs.ts_attributes[var]
     else:
         global_attributes = None
         ts_attributes = None
@@ -246,4 +246,3 @@ def main(args):
 
 def run():
     main(sys.argv[1:])
-
