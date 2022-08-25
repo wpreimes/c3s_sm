@@ -3,7 +3,7 @@ c3s_sm
 ============
 
 
-.. image:: https://github.com/TUW-GEO/c3s_sm/workflows/tests/badge.svg?branch=master
+.. image:: https://github.com/TUW-GEO/c3s_sm/workflows/Automated%20Tests/badge.svg?branch=master
    :target: https://github.com/TUW-GEO/c3s_sm/actions
 
 .. image:: https://coveralls.io/repos/github/TUW-GEO/c3s_sm/badge.svg?branch=master

@@ -5,6 +5,7 @@ import glob
 from tempfile import TemporaryDirectory
 import numpy as np
 import numpy.testing as nptest
+from netCDF4 import Dataset
 
 from c3s_sm.reshuffle import main, parse_filename
 from c3s_sm.interface import C3STs
@@ -44,7 +45,12 @@ def test_reshuffle_TCDR_daily_multiple_params():
 
         ds = C3STs(ts_path, remove_nans=True, parameters=['sm', 'sm_uncertainty'],
                    ioclass_kws={'read_bulk': True, 'read_dates': False})
-        ts = ds.read(75.625, 14.625)
+        loc = 75.625, 14.625
+        cell = ds.grid.gpi2cell(ds.grid.find_nearest_gpi(*loc)[0])
+        with Dataset(os.path.join(ts_path, f'{cell:04}.nc')) as xrds:
+            assert xrds['sm'].getncattr('units') == "percentage (%)"
+            assert xrds['sm_uncertainty'].getncattr('name') == "sm_uncertainty"
+        ts = ds.read(*loc)
 
         assert not any(ts['sm'] == 0)
         assert isinstance(ts.index, pd.DatetimeIndex)
@@ -79,13 +85,21 @@ def test_reshuffle_ICDR_monthly_single_param(ignore_meta):
         assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 9
 
         ds = C3STs(ts_path, remove_nans=True, parameters=None, ioclass_kws={'read_bulk': True, 'read_dates': False})
-        ts = ds.read(4.125, 46.875)
+        loc = 4.125, 46.875
+        cell = ds.grid.gpi2cell(ds.grid.find_nearest_gpi(*loc)[0])
+        with Dataset(os.path.join(ts_path, f'{cell:04}.nc')) as xrds:
+            if ignore_meta:
+                with pytest.raises(AttributeError):
+                    _ = xrds['sm'].getncattr('units')
+            else:
+                assert xrds['sm'].getncattr('units') == "m3 m-3"
+                assert xrds['freqbandID'].getncattr('name') == "freqbandID"
+        ts = ds.read(*loc)
         assert not np.any(ts['sm'] == 0)  # in corrupt file
         assert not np.any(ts['sensor'] < 0)  # in corrupt file
         assert isinstance(ts.index, pd.DatetimeIndex)
         assert ts.index.size == 3
         ts_sm_values_should = np.array([0.291388, 0.328116, 0.316130], dtype=np.float32)
-
         nptest.assert_allclose(ts['sm'].values, ts_sm_values_should, rtol=1e-5)
 
         ts_sensor_values_should = np.array([768, 768, 256], dtype=np.float32)

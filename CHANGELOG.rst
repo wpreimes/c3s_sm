@@ -2,12 +2,19 @@
 Changelog
 =========
 
-Version 0.X (unreleased)
-========================
+Version x.x.x
+=============
+
+- ...
+
+Version 0.2.0
+=============
 
 - Allow reading and reshuffling spatial subsets (bbox)
 - Add support for new versions v201912, v202012
 - Add module to generate metadata for time series files
+- Add Reader for image stacks
+- CI runs in Github Actions now
 
 Version 0.1.2
 =============
