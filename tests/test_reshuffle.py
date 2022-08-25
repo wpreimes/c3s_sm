@@ -11,7 +11,6 @@ from c3s_sm.reshuffle import main, parse_filename
 from c3s_sm.interface import C3STs
 import pandas as pd
 import pytest
-import xarray as xr
 
 def test_parse_filename():
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
