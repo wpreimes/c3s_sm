@@ -28,7 +28,13 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          submodules: true
+          submodules: false
+      - name: Checkout Testdata
+        shell: bash -l {0}
+        run : |
+          git submodule init
+          git submodule update
+          ls tests/c3s_sm-test-data
       - uses: conda-incubator/setup-miniconda@v2.0.1
         with:
           miniconda-version: "latest"
