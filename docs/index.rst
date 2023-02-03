@@ -1,22 +1,15 @@
 
-.. include:: ../README.rst
-
-.. include:: reading.rst
-
-.. include:: img2ts.rst
-
-.. include:: varnames.rst
-
-Contents
-========
-
 .. toctree::
-   :maxdepth: 2
+   :hidden:
+   :glob:
 
+   README <readme>
    License <license>
    Authors <authors>
-   Changelog <changes>
+   Changelog <changelog>
    Module Reference <api/modules>
+
+.. include:: ../README.rst
 
 
 Indices and tables
