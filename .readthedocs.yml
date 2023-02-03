@@ -1,12 +1,23 @@
 version: 2
 
+submodules:
+  include:
+    - docs/c3s_sm-tutorials
+  recursive: true
+
+build:
+  os: ubuntu-20.04
+  tools:
+    python: mambaforge-4.10
+
+python:
+  install:
+    - method: pip
+      path: .
+
 sphinx:
   configuration: docs/conf.py
 
-formats:
-  - pdf
+conda:
+  environment: docs/docs_env.yml
 
-python:
-  version: 3.7
-  install:
-    - requirements: docs/requirements.txt
