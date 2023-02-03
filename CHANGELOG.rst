@@ -5,7 +5,7 @@ Changelog
 Version x.x.x
 =============
 
-- ...
+- Add tutorials submodule to docs
 
 Version 0.2.0
 =============
