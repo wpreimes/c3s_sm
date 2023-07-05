@@ -7,15 +7,11 @@ Unreleased Changes
 
 -
 
-Version 0.3.0
+Version 0.2.0
 =============
 
 - Support C3S v202212
 - Add tutorials submodule to docs
-
-Version 0.2.0
-=============
-
 - Allow reading and reshuffling spatial subsets (bbox)
 - Add support for new versions v201912, v202012
 - Add module to generate metadata for time series files
