@@ -2,9 +2,15 @@
 Changelog
 =========
 
-Version x.x.x
+Unreleased Changes
+==================
+
+-
+
+Version 0.3.0
 =============
 
+- Support C3S v202212
 - Add tutorials submodule to docs
 
 Version 0.2.0
