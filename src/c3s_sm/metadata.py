@@ -329,3 +329,9 @@ class C3S_SM_TS_Attrs_v202212(C3S_SM_TS_Attrs):
         self.sensor_flag_meanings = np.array(list(sensor_flag_dict.values()))
 
         return self.sensor_flag_values, self.sensor_flag_meanings
+
+class C3S_SM_TS_Attrs_v202312(C3S_SM_TS_Attrs):
+    def __init__(self, sensor_type):
+        version = type(self).__name__.split('_')[-1]
+        super(C3S_SM_TS_Attrs_v202312, self).__init__(sensor_type,
+                                                      version)
