@@ -142,6 +142,8 @@ class C3SImg(ImageBase):
             for parameter in parameters:
                 metadata = {}
                 param = ds.variables[parameter]
+                if param.ndim <= 1:
+                    continue
                 data = param[:][0] # there is only 1 time stamp in the image
 
                 self.shape = (data.shape[0], data.shape[1])
@@ -291,7 +293,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
                  flatten=False,
                  solve_ambiguity='sort_last',
                  fntempl=fntempl,
-                 subpath_templ=None,
+                 subpath_templ=("%Y",),
                  fillval=None):
         """
         Parameters
@@ -346,8 +348,8 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
                                                exact_templ=False,
                                                ioclass_kws=ioclass_kwargs)
 
-    def _build_filename(self, timestamp:datetime, custom_templ:str=None,
-                        str_param:dict=None):
+    def _build_filename(self, timestamp: datetime, custom_templ: str = None,
+                        str_param: dict = None):
         """
         This function uses _search_files to find the correct
         filename and checks if the search was unambiguous.
@@ -432,6 +434,9 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
             list of datetime objects of each available image between
             start_date and end_date
         """
+
+        if 'temp' not in self.fname_args:
+            self.fname_args['temp'] = 'DAILY'
 
         if self.fname_args['temp'] == 'MONTHLY':
             timestamps = pd.date_range(start_date, end_date, freq='MS').to_pydatetime()
@@ -589,3 +594,10 @@ class C3STs(GriddedNcOrthoMultiTs):
 
     def write_ts(self, *args, **kwargs):
         pass
+
+
+if __name__ == '__main__':
+    ds = C3S_Nc_Img_Stack("/home/wpreimes/shares/climers/Projects/C3S2_312a/07_data/C3S_v202312/CDR_EODC/060_daily_images/combined",
+                          parameters=['sm', 'flag'],
+                          fillval={'sm': np.nan, 'flag': 255, })
+    img = ds.read(datetime(2020,1,1))

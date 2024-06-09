@@ -1,0 +1,1 @@
+c3s_repurpose /tmp/img2ts/images /tmp 2015-01-01 2015-12-31 --land_points True --imgbuffer 2500 --fn_templ G3P-SOILMOISTURE-COMBINED_GAPFILLED-{datetime}-fv202212.nc

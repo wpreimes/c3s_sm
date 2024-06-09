@@ -8,15 +8,18 @@ import os
 import sys
 import argparse
 from datetime import datetime
-
+from pygeogrids.netcdf import load_grid
 import pandas as pd
 from repurpose.img2ts import Img2Ts
-from c3s_sm.interface import C3S_Nc_Img_Stack, fntempl
+from c3s_sm.interface import C3S_Nc_Img_Stack
+from c3s_sm.interface import fntempl as _fntempl
 import c3s_sm.metadata as metadata
 from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
 from smecv_grid.grid import SMECV_Grid_v052
 from parse import parse
 from netCDF4 import Dataset
+import numpy as np
+
 
 def mkdate(datestring):
     """
@@ -43,7 +46,7 @@ def str2bool(val):
     else:
         return False
 
-def parse_filename(data_dir):
+def parse_filename(data_dir, fntempl):
     """
     Take the first file in the passed directory and use its file name to
     retrieve the product type, version number and variables in the file.
@@ -52,6 +55,8 @@ def parse_filename(data_dir):
     ----------
     inroot : str
         Input root directory
+    fntempl: str
+        Filename template
 
     Returns
     -------
@@ -77,7 +82,7 @@ def parse_filename(data_dir):
 
 def reshuffle(input_root, outputpath, startdate, enddate,
               parameters=None, land_points=True, bbox=None,
-              ignore_meta=False, imgbuffer=500):
+              ignore_meta=False, fntempl=_fntempl, imgbuffer=500):
     """
     Reshuffle method applied to C3S data.
 
@@ -102,6 +107,9 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     ignore_meta : bool, optional (default: False)
         Ignore metadata and reshuffle only the values. Can be used e.g. if a
         version is not yet supported.
+    fntempl: str, optional (default: "C3S-SOILMOISTURE-L3S-SSM{unit}-{prod}-{temp}-{datetime}-{cdr}-{vers}.{subvers}.nc")
+        Template that image files follow, must contain a section {datetime}
+        where the date is pared from.
     imgbuffer: int, optional (default: 50)
         How many images to read at once before writing time series.
     """
@@ -115,7 +123,7 @@ def reshuffle(input_root, outputpath, startdate, enddate,
         grid = grid.subgrid_from_bbox(*bbox)
 
     if parameters is None:
-        file_args, file_vars = parse_filename(input_root)
+        file_args, file_vars = parse_filename(input_root, fntempl=fntempl)
         parameters = [p for p in file_vars if p not in ['lat', 'lon', 'time']]
 
     subpath_templ = ('%Y',) if os.path.isdir(os.path.join(input_root, str(startdate.year))) else None
@@ -123,7 +131,8 @@ def reshuffle(input_root, outputpath, startdate, enddate,
                                      parameters=parameters,
                                      subgrid=grid,
                                      flatten=True,
-                                     fillval=None,
+                                     fillval={'sm': np.nan, 'flag': 2**8},
+                                     fntempl=fntempl,
                                      subpath_templ=subpath_templ)
 
     if not ignore_meta:
@@ -210,6 +219,11 @@ def parse_args(args):
                         help=("Do not apply image metadata to the time series."
                               "E.g. for unsupported data versions."))
 
+    parser.add_argument("--fntempl", type=str, default=_fntempl,
+                        help=("Filename template to parse datetime from. Must contain"
+                              "a {datetime} placeholder"))
+
+
     parser.add_argument("--imgbuffer", type=int, default=200,
                         help=("How many images to read at once. Bigger "
                               "numbers make the conversion faster but "
@@ -246,3 +260,38 @@ def main(args):
 
 def run():
     main(sys.argv[1:])
+
+if __name__ == '__main__':
+    for mode in ['dekadal', 'monthly']:
+        if mode == 'dekadal':
+            folder = "061_dekadal_images"
+        elif mode == "monthly":
+            folder = "062_monthly_images"
+        else:
+            raise NotImplementedError()
+        reshuffle(f"/data-read/USERS/wpreimes/C3S_v202312/{folder}/combined",
+                  f"/data-write/USERS/wpreimes/C3S_v202312/time_series/combined-{mode}",
+                  datetime(1978,11,1),
+                  datetime(2023,12,31),
+                  ignore_meta=False,
+                  imgbuffer=3000,
+                  parameters=['sm', 'freqbandID', 'nobs', 'sensor'],
+                  )
+
+        reshuffle(f"/data-read/USERS/wpreimes/C3S_v202312/{folder}/passive",
+                  f"/data-write/USERS/wpreimes/C3S_v202312/time_series/passive-{mode}",
+                  datetime(1978,11,1),
+                  datetime(2023,12,31),
+                  ignore_meta=False,
+                  imgbuffer=3000,
+                  parameters=['sm', 'freqbandID', 'nobs', 'sensor'],
+                  )
+
+        reshuffle(f"/data-read/USERS/wpreimes/C3S_v202312/{folder}/active",
+                  f"/data-write/USERS/wpreimes/C3S_v202312/time_series/active-{mode}",
+                  datetime(1991, 8, 5),
+                  datetime(2023, 12, 31),
+                  ignore_meta=False,
+                  imgbuffer=3000,
+                  parameters=['sm', 'freqbandID', 'nobs', 'sensor'],
+                  )
