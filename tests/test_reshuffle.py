@@ -7,8 +7,7 @@ import numpy as np
 import numpy.testing as nptest
 from netCDF4 import Dataset
 
-from c3s_sm.reshuffle import reshuffle, parse_filename
-from c3s_sm.cli import cli_reshuffle
+from c3s_sm.reshuffle import parse_filename
 from c3s_sm.interface import C3STs
 import pandas as pd
 import pytest
@@ -96,6 +95,7 @@ def test_reshuffle_ICDR_monthly_single_param(ignore_meta):
                + ['--ignore_meta', str(ignore_meta)] \
                + ['--imgbuffer', '100'] \
                + ['--n_proc', "2"]
+
         subprocess.call(['c3s_sm', 'reshuffle', *args])
 
         i = os.environ.pop("C3S_SM_NO_IMAGE_BASE_CONNECTION")

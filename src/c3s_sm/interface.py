@@ -1,25 +1,3 @@
-# The MIT License (MIT)
-#
-# Copyright (c) 2018, TU Wien
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
 '''
 Readers for the C3S soil moisture products daily, dekadal (10-daily) and monthly
 images as well as for timeseries generated using this module
@@ -80,10 +58,7 @@ class C3SImg(ImageBase):
             Note that choosing np.nan can lead to a change in dtype for some
             (int) parameters. None will use the fill value from the netcdf file
         """
-        self.path = os.path.dirname(filename)
-        self.fname = os.path.basename(filename)
-
-        super(C3SImg, self).__init__(os.path.join(self.path, self.fname), mode=mode)
+        super(C3SImg, self).__init__(filename, mode=mode)
 
         self.parameters = np.atleast_1d(parameters) \
             if parameters is not None else np.array([])
@@ -97,13 +72,18 @@ class C3SImg(ImageBase):
         self.img = None  # to be loaded
         self.glob_attrs = None
 
+        self.fillval = self._setup_fillval(fillval)
+
+    def _setup_fillval(self, fillval) -> dict:
         if isinstance(fillval, dict):
             self.fillval = fillval
             for p in self.parameters:
                 if p not in self.fillval:
                     self.fillval[p] = None
         else:
-            self.fillval ={p: fillval for p in self.parameters}
+            self.fillval = {p: fillval for p in self.parameters}
+
+        return self.fillval
 
     def _read_flat_img(self) -> (dict, dict, dict, datetime):
         """
@@ -144,9 +124,8 @@ class C3SImg(ImageBase):
                     if self.fillval[parameter] is None:
                         self.fillval[parameter] = data.fill_value
 
-                    common_dtype = np.find_common_type(
-                        array_types=[data.dtype],
-                        scalar_types=[type(self.fillval[parameter])]
+                    common_dtype = np.result_type(
+                        *([data.dtype] + [type(self.fillval[parameter])])
                     )
                     self.fillval[parameter] = np.array(
                         [self.fillval[parameter]], dtype=common_dtype)[0]
@@ -170,8 +149,7 @@ class C3SImg(ImageBase):
 
         return param_img, param_meta, global_attrs, timestamp
 
-    def _mask_and_reshape(self,
-                          data: dict) -> dict:
+    def _mask_and_reshape(self, data: dict) -> dict:
         """
         Takes the grid and drops points that are not active.
         for flattened arrays that means that only the active gpis are kept.
@@ -181,12 +159,10 @@ class C3SImg(ImageBase):
         ----------
         data: dict
             Variable names and flattened image data.
-        shape_2d : tuple
-            2d shape of the original image.
 
         Returns
         -------
-        dat : dict
+        data : dict
             Masked, reshaped data.
         """
 
@@ -270,6 +246,7 @@ class C3SImg(ImageBase):
     def flush(self, *args, **kwargs):
         pass
 
+
 class C3S_Nc_Img_Stack(MultiTemporalImageBase):
     """
     Class for reading multiple images and iterate over them.
@@ -293,9 +270,9 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
             Variables to read from the image files.
         grid : pygeogrids.CellGrid, optional (default: SMECV_Grid_v052(None)
             Subset of the image to read
-        array_1D : bool, optional (default: False)
+        flatten : bool, optional (default: False)
             Flatten the read image to a 1D array instead of a 2D array
-        solve_ambiguity : str, optional (default: 'latest')
+        solve_ambiguity : str, optional (default: 'sort_last')
             Method to solve ambiguous time stamps, e.g. if a reprocessing
             was performed.
                 - error: raises error in case of ambiguity
@@ -303,17 +280,16 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
                     name, in case that multiple files are found.
                 - sort_first: uses the first file when sorted by file name
                     in case that multiple files are found.
-        filename_templ: str, optional
+        fntempl: str, optional
             Filename template to parse datetime from.
         subpath_templ : list or None, optional (default: None)
-            List of subdirectory names to build file paths. e.g. ['%Y'] if files
-            in collected by years.
-        fillval : float or dict or None, optional (default: None)
+            List of subdirectory names to build file paths.
+            e.g. ['%Y'] if files are stored in subdirs by year.
+        fillval : float or dict or None, optional (default: np.nan)
             Fill Value for masked pixels, if a dict is passed, this can be
             set for each parameter individually, otherwise it applies to all.
             Note that choosing np.nan can lead to a change in dtype for some
-            parameters (int to float).
-            None will use the fill value from the netcdf file
+            (int) parameters. None will use the fill value from the netcdf file
         """
 
         self.data_path = data_path
@@ -325,6 +301,7 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
         self.fname_args = self._parse_filename(fntempl)
         self.solve_ambiguity = solve_ambiguity
         fn_args = self.fname_args.copy()
+        # it's ok if the following fields are missing in the template
         fn_args['subversion'] = '*'
         fn_args['record'] = '*'
         filename_templ = fntempl.format(**fn_args)
@@ -464,7 +441,6 @@ class C3STs(GriddedNcOrthoMultiTs):
     """
     Module for reading C3S time series in netcdf format.
     """
-
     def __init__(self, ts_path, grid_path=None, remove_nans=False, drop_tz=True,
                  **kwargs):
 
@@ -583,10 +559,3 @@ class C3STs(GriddedNcOrthoMultiTs):
 
     def write_ts(self, *args, **kwargs):
         pass
-
-
-if __name__ == '__main__':
-    ds = C3S_Nc_Img_Stack("/home/wpreimes/shares/climers/Projects/C3S2_312a/07_data/C3S_v202312/CDR_EODC/060_daily_images/combined",
-                          parameters=['sm', 'flag'],
-                          fillval={'sm': np.nan, 'flag': 255, })
-    img = ds.read(datetime(2020,1,1))

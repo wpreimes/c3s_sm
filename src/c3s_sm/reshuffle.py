@@ -5,46 +5,17 @@ time series format using the repurpose package
 """
 
 import os
-import sys
-import argparse
 from datetime import datetime
 from repurpose.img2ts import Img2Ts
 from repurpose.process import ImageBaseConnection
 from c3s_sm.interface import C3S_Nc_Img_Stack
 from c3s_sm.const import fntempl as _default_template
-from c3s_sm.download import infer_file_props
 import c3s_sm.metadata as metadata
 from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
 from smecv_grid.grid import SMECV_Grid_v052
 from parse import parse
 from netCDF4 import Dataset
 import numpy as np
-
-
-def mkdate(datestring):
-    """
-    Create date string.
-
-    Parameters
-    ----------
-    datestring : str
-        Date string.
-
-    Returns
-    -------
-    datestr : datetime
-        Date string as datetime.
-    """
-    if len(datestring) == 10:
-        return datetime.strptime(datestring, '%Y-%m-%d')
-    if len(datestring) == 16:
-        return datetime.strptime(datestring, '%Y-%m-%dT%H:%M')
-
-def str2bool(val):
-    if val in ['True', 'true', 't', 'T', '1']:
-        return True
-    else:
-        return False
 
 def parse_filename(data_dir, fntempl=_default_template):
     """

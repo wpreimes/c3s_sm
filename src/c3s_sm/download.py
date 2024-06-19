@@ -3,29 +3,49 @@
 """
 Module to download c3s soil moisture data from the CDS
 """
-
-import cdsapi
+import sys
+import os
 from datetime import datetime, timedelta
 import calendar
-import os
 from zipfile import ZipFile
 from glob import glob
-
+import logging
+import cdsapi
 import pandas as pd
 from parse import parse
 from dateutil.relativedelta import relativedelta
 from cadati.dekad import day2dekad
 
 from c3s_sm.const import fntempl as _default_template
-from c3s_sm.const import variable_lut, freq_lut, api_ready, logger
+from c3s_sm.const import variable_lut, freq_lut, api_ready
 
-def infer_file_props(path, fntempl=_default_template, start_from='last') -> dict:
+
+def logger(fname, level=logging.DEBUG, verbose=False):
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
+    logging.basicConfig(filename=fname, level=level,
+                        format='%(levelname)s %(asctime)s %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
+    logger = logging.getLogger()
+    if verbose:
+        logger.addHandler(logging.StreamHandler(sys.stdout))
+    logging.captureWarnings(True)
+
+    assert os.path.exists(fname)
+
+    return logger
+
+def infer_file_props(path: str,
+                     fntempl: str = _default_template,
+                     start_from='last') -> dict:
     """
     Parse file names to retrieve properties from :func:`c3s_sm.const.fntempl`.
     """
     files = sorted(glob(os.path.join(path, '**', '*.nc')))
     if len(files) == 0:
-        raise ValueError(f"No matching files for chosen template found in the directory {path}")
+        raise ValueError(f"No matching files for chosen template found in "
+                         f"the directory {path}")
     else:
         if start_from.lower() == 'last':
             files = files[::-1]
@@ -64,17 +84,19 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir,
     days : list
         Days for which data is downloaded (range(31)=All days) e.g. [10, 20, 31]
     version: str
-        Version string of data to download, e.g. 'v201706.0.0'
-    variables : list, optional (default: None)
-        List of variables to pass to the client, if None are passed, the default
-        variables will be downloaded.
+        Version string of data to download, e.g. 'v202212'
     target_dir : str
         Directory where the data is downloaded into
     temp_filename : str
         filename of the zip archive that will be downloaded
-    freq : str
+    freq : str, optional (default: daily)
         daily, dekadal or monthly. Which of the three aggregated products to
         download.
+    keep_original: bool, optional (default: False)
+        Whether the original file retrieved from CDS should be kept. If False,
+        then only the extracted images are kept.
+    max_retries: int, optional (default: 5)
+        When a download failes, try again up to max_retries times
     dry_run : bool, optional (default: False)
         Does not download anything, returns query, success is False
 
@@ -85,12 +107,10 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir,
     queries: dict[str, dict]
         icdr and cdr query that were submitted
     """
-
     if not api_ready:
         raise ValueError("Cannot establish connection to CDS. Please set up"
                          "your CDS API key as described at "
                          "https://cds.climate.copernicus.eu/api-how-to")
-
 
     if not os.path.exists(target_dir):
         raise IOError(f'Target path {target_dir} does not exist.')
@@ -126,7 +146,7 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir,
                 try:
                     c.retrieve(**query)
                     success[record] = True
-                except Exception:
+                except Exception as _:
                     # delete the partly downloaded data and retry
                     if os.path.isfile(dl_file):
                         os.remove(dl_file)
@@ -179,7 +199,7 @@ def download_and_extract(target_path,
     dry_run : bool, optional (default: False)
         Does not download anything, returns query, success is False
 
-    Returns:
+    Returns
     -------
     queries: list
         List[dict]: All submitted queries

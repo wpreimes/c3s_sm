@@ -48,23 +48,5 @@ startdates = {'combined': datetime(1978,11,1),
               'passive': datetime(1978, 11, 1),
               'active': datetime(1991, 8, 5)}
 
+
 fntempl = "C3S-SOILMOISTURE-L3S-SSM{unit}-{product}-{freq}-{datetime}-{record}-{version}.{subversion}.nc"
-
-
-
-def logger(fname, level=logging.DEBUG, verbose=False):
-
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-
-    logging.basicConfig(filename=fname, level=level,
-                        format='%(levelname)s %(asctime)s %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
-    logger = logging.getLogger()
-    if verbose:
-        logger.addHandler(logging.StreamHandler(sys.stdout))
-    logging.captureWarnings(True)
-
-    assert os.path.exists(fname)
-
-    return logger

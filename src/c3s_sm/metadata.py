@@ -203,7 +203,8 @@ class C3S_dekmon_tsatt_nc(object):
                        'flag_meanings': self.general_attrs.sensor_flag_meanings},
             'nobs': {'full_name': 'Number of valid observation'},
             'sm': {'full_name': self.general_attrs.sm_full_name,
-                   'units': self.general_attrs.sm_units}}
+                   'units': self.general_attrs.sm_units}
+        }
 
         product_name = " ".join(['C3S', 'SOILMOISTURE', 'L3S',
                                  self.general_attrs.product_datatype_str[sensor_type].upper(),
@@ -212,9 +213,11 @@ class C3S_dekmon_tsatt_nc(object):
                                  self.cdr_type.upper(),
                                  self.version])
 
-        self.global_attr = {'product': product_name,
-                            'resolution': '0.25 degree',
-                            'temporalspacing': self.freq}
+        self.global_attr = {
+            'product': product_name,
+            'resolution': '0.25 degree',
+            'temporalspacing': self.freq
+        }
 
 
 class C3S_SM_TS_Attrs_v201706(C3S_SM_TS_Attrs):
