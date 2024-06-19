@@ -64,7 +64,7 @@ def test_C3s_daily_tsatt_nc():
 def test_C3s_dekmon_tsatt_nc():
     subtype = 'TCDR'
     sensor = 'passive'
-    dob = C3S_dekmon_tsatt_nc(product_temp_res='monthly',
+    dob = C3S_dekmon_tsatt_nc(freq='monthly',
                               cdr_type=subtype,
                               sensor_type=sensor,
                               cls=C3S_SM_TS_Attrs_v201912)

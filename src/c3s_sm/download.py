@@ -1,69 +1,57 @@
 # -*- coding: utf-8 -*-
 
 """
-Download c3s soil moisture from the CDS
+Module to download c3s soil moisture data from the CDS
 """
 
 import cdsapi
 from datetime import datetime, timedelta
-import warnings
 import calendar
 import os
 from zipfile import ZipFile
-import argparse
-import sys
-import logging
+from glob import glob
 
-dotrc = os.environ.get('CDSAPI_RC', os.path.expanduser('~/.cdsapirc'))
+import pandas as pd
+from parse import parse
+from dateutil.relativedelta import relativedelta
+from cadati.dekad import day2dekad
 
-if not os.path.isfile(dotrc):
-    url = os.environ.get('CDSAPI_URL')
-    key = os.environ.get('CDSAPI_KEY')
-    if url is None or key is None:
-        warnings.warn('CDS API URL or KEY not found, download will not work! '
-                      'Please set CDSAPI_URL and CDSAPI_KEY  or set up a .cdsapirc '
-                      'file as described here: '
-                      'https://cds.climate.copernicus.eu/api-how-to')
-        api_ready = False
+from c3s_sm.const import fntempl as _default_template
+from c3s_sm.const import variable_lut, freq_lut, api_ready, logger
+
+def infer_file_props(path, fntempl=_default_template, start_from='last') -> dict:
+    """
+    Parse file names to retrieve properties from :func:`c3s_sm.const.fntempl`.
+    """
+    files = sorted(glob(os.path.join(path, '**', '*.nc')))
+    if len(files) == 0:
+        raise ValueError(f"No matching files for chosen template found in the directory {path}")
     else:
-        api_ready = True
-else:
-    api_ready = True
+        if start_from.lower() == 'last':
+            files = files[::-1]
+        elif start_from.lower() == 'first':
+            pass
+        else:
+            raise NotImplementedError(f"`start_from` must be one of: "
+                                      f"`first`, `last`.")
+        for f in files[::-1]:
+            file_args = parse(fntempl,  os.path.basename(f))
+            if file_args is None:
+                continue
+            return file_args.named
 
-variable_lut = {'combined': {'variable' : 'volumetric_surface_soil_moisture',
-                             'type_of_sensor' : 'combined_passive_and_active'},
-                'passive': {'variable' : 'volumetric_surface_soil_moisture',
-                            'type_of_sensor': 'passive'},
-                'active': {'variable': 'soil_moisture_saturation',
-                           'type_of_sensor': 'active'}}
+    raise ValueError(f"No matching files for chosen template found in the "
+                     f"directory {path}")
 
-aggregation_lut = {'daily': 'day_average',
-                   'dekadal': '10_day_average',
-                   'monthly': 'month_average'}
 
-def logger(fname, level=logging.DEBUG, verbose=False):
-
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-
-    logging.basicConfig(filename=fname, level=level,
-                        format='%(levelname)s %(asctime)s %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
-    logger = logging.getLogger()
-    if verbose:
-        logger.addHandler(logging.StreamHandler(sys.stdout))
-    logging.captureWarnings(True)
-
-    assert os.path.exists(fname)
-
-    return logger
-
-def download_c3ssm(c, sensor, years, months, days, version, target_dir, temp_filename,
-                   aggregation='daily', keep_original=False, max_retries=5):
+def download_c3ssm(c, sensor, years, months, days, version, target_dir,
+                   temp_filename, freq='daily', keep_original=False,
+                   max_retries=5, dry_run=False):
     """
     Download c3s sm data for single levels of a defined time span
     Parameters. We will always try to download the CDR and ICDR!
 
+    Parameters
     ----------
     c : cdsapi.Client
         Client to pass the request to
@@ -84,49 +72,70 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir, temp_fil
         Directory where the data is downloaded into
     temp_filename : str
         filename of the zip archive that will be downloaded
-    aggregation : str
+    freq : str
         daily, dekadal or monthly. Which of the three aggregated products to
         download.
+    dry_run : bool, optional (default: False)
+        Does not download anything, returns query, success is False
 
     Returns
-    ---------
-    success : bool
-        Indicates whether the download was successful
+    -------
+    success : dict[str, bool]
+        Indicates whether the download was successful, False for dry_run=True
+    queries: dict[str, dict]
+        icdr and cdr query that were submitted
     """
+
+    if not api_ready:
+        raise ValueError("Cannot establish connection to CDS. Please set up"
+                         "your CDS API key as described at "
+                         "https://cds.climate.copernicus.eu/api-how-to")
+
 
     if not os.path.exists(target_dir):
         raise IOError(f'Target path {target_dir} does not exist.')
 
     success = {'icdr': False, 'cdr': False}
+    queries = {'icdr': None, 'cdr': None}
 
     for record in ['cdr', 'icdr']:
         dl_file = os.path.join(target_dir, temp_filename)
+        os.makedirs(os.path.dirname(dl_file), exist_ok=True)
+
         i = 0
         while not success[record] and i <= max_retries:
-            try:
-                c.retrieve(
-                    'satellite-soil-moisture',
-                    {
-                        'variable': variable_lut[sensor]['variable'],
-                        'type_of_sensor': variable_lut[sensor]['type_of_sensor'],
-                        'time_aggregation': aggregation_lut[aggregation],
-                        'format': 'zip',
-                        'year': [str(y) for y in years],
-                        'month': [str(m).zfill(2) for m in months],
-                        'day': [str(d).zfill(2) for d in days],
-                        'version': version,
-                        'type_of_record': record
-                    },
-                    dl_file)
+            query = dict(
+                name='satellite-soil-moisture',
+                request={
+                    'variable': variable_lut[sensor]['variable'],
+                    'type_of_sensor': variable_lut[sensor]['type_of_sensor'],
+                    'time_aggregation': freq_lut[freq],
+                    'format': 'zip',
+                    'year': [str(y) for y in years],
+                    'month': [str(m).zfill(2) for m in months],
+                    'day': [str(d).zfill(2) for d in days],
+                    'version': version,
+                    'type_of_record': record
+                },
+                target=dl_file
+            )
 
-                success[record] = True
-            except:
-                # delete the partly downloaded data and retry
-                if os.path.isfile(dl_file):
-                    os.remove(dl_file)
+            queries[record] = query
+
+            if not dry_run:
+                try:
+                    c.retrieve(**query)
+                    success[record] = True
+                except Exception:
+                    # delete the partly downloaded data and retry
+                    if os.path.isfile(dl_file):
+                        os.remove(dl_file)
+                    success[record] = False
+                finally:
+                    i += 1
+            else:
                 success[record] = False
-            finally:
-                i += 1
+                break
 
         if success[record]:
             with ZipFile(dl_file, 'r') as zip_file:
@@ -135,17 +144,21 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir, temp_fil
             if not keep_original:
                 os.remove(dl_file)
 
-    return success
+    return success, queries
 
-def download_and_extract(target_path, startdate=datetime(1978,1,1),
-                         enddate=datetime.now(), sensor='combined',
-                         aggregation='daily', version='v201706.0.0',
-                         keep_original=False):
+def download_and_extract(target_path,
+                         startdate=datetime(1978,1,1),
+                         enddate=datetime.now(),
+                         product='combined',
+                         freq='daily',
+                         version='v202212',
+                         keep_original=False,
+                         dry_run=False):
     """
-    Downloads the data from the ECMWF servers and moves them to the target path.
+    Downloads the data from the CDS servers and moves them to the target path.
     This is done in 30 day increments between start and end date.
-    The files are then extracted into separate grib files per parameter and stored
-    in yearly folders under the target_path.
+    The files are then extracted into yearly folders under the target_path.
+
     Parameters
     ----------
     target_path : str
@@ -154,26 +167,35 @@ def download_and_extract(target_path, startdate=datetime(1978,1,1),
         first day to download data for (if available)
     enddate: datetime, optional (default: datetime.now())
         last day to download data for (if available)
-    sensor : str, optional (default: 'combined')
+    product : str, optional (default: 'combined')
         Product (combined, active, passive) to download
-    aggregation : str, optional (default: 'daily')
+    freq : str, optional (default: 'daily')
         'daily', 'dekadal' or 'monthly' averaged data to download.
-    version : str, optional (default: 'v201706.0.0')
+    version : str, optional (default: 'v202212')
         Dataset version to download.
     keep_original: bool, optional (default: False)
         Keep the original downloaded data in zip format together with the unzipped
         files.
+    dry_run : bool, optional (default: False)
+        Does not download anything, returns query, success is False
+
+    Returns:
+    -------
+    queries: list
+        List[dict]: All submitted queries
     """
 
-    sensor = sensor.lower()
-    if sensor not in variable_lut.keys():
-        raise ValueError(f"{sensor} is not a supported product. "
+    product = product.lower()
+    if product not in variable_lut.keys():
+        raise ValueError(f"{product} is not a supported product. "
                          f"Choose one of {list(variable_lut.keys())}")
 
-    aggregation = aggregation.lower()
-    if aggregation not in aggregation_lut.keys():
-        raise ValueError(f"{aggregation} is not a supported aggregation. "
-                         f"Choose one of {list(aggregation_lut.keys())}")
+    freq = freq.lower()
+    if freq not in freq_lut.keys():
+        raise ValueError(f"{freq} is not a supported frequency. "
+                         f"Choose one of {list(freq_lut.keys())}")
+
+    os.makedirs(target_path, exist_ok=True)
 
     dl_logger = logger(os.path.join(target_path,
         f"download_{'{:%Y%m%d%H%M%S.%f}'.format(datetime.now())}.log"))
@@ -182,8 +204,9 @@ def download_and_extract(target_path, startdate=datetime(1978,1,1),
                       url=os.environ.get('CDSAPI_URL'),
                       key=os.environ.get('CDSAPI_KEY'),
                       error_callback=dl_logger)
+    queries = []
 
-    if aggregation == 'daily':
+    if freq == 'daily':
         curr_start = startdate
         # download monthly zip archives
         while curr_start <= enddate:
@@ -198,24 +221,27 @@ def download_and_extract(target_path, startdate=datetime(1978,1,1),
 
             curr_end = datetime(y, m, d)
 
-            fname = f"{curr_start.strftime('%Y%m%d')}_{curr_end.strftime('%Y%m%d')}.zip"
+            fname = (f"{curr_start.strftime('%Y%m%d')}_"
+                     f"{curr_end.strftime('%Y%m%d')}.zip")
 
             target_dir_year = os.path.join(target_path, str(y))
             os.makedirs(target_dir_year, exist_ok=True)
 
-            _ = download_c3ssm(c, sensor, years=[y], months=[m],
-                               days=list(range(sd, d+1)), version=version,
-                               aggregation=aggregation, max_retries=3,
-                               target_dir=target_dir_year, temp_filename=fname,
-                               keep_original=keep_original)
+            _, q = download_c3ssm(
+                c, product, years=[y], months=[m],
+                days=list(range(sd, d+1)), version=version,
+                freq=freq, max_retries=3,
+                target_dir=target_dir_year, temp_filename=fname,
+                keep_original=keep_original, dry_run=dry_run)
 
+            queries.append(q)
             curr_start = curr_end + timedelta(days=1)
 
     else:
         curr_year = startdate.year
         # download annual zip archives, this means that the day is ignored
         # when downloading monthly/dekadal data.
-        if aggregation == 'monthly':
+        if freq == 'monthly':
             ds = [1]
         else:
             ds = [1, 11, 21]
@@ -223,14 +249,14 @@ def download_and_extract(target_path, startdate=datetime(1978,1,1),
         while curr_year <= enddate.year:
 
             if curr_year == startdate.year:
-                ms = [m for m in range(1,13) if m >= startdate.month]
+                ms = [m for m in range(1, 13) if m >= startdate.month]
             elif curr_year == enddate.year:
                 ms = [m for m in range(1, 13) if m <= enddate.month]
             else:
                 ms = list(range(1,13))
 
             curr_start = datetime(curr_year, ms[0],
-                                  startdate.day if curr_year == startdate.year else ds[0])
+                startdate.day if curr_year == startdate.year else ds[0])
 
             while curr_start.day not in ds:
                 curr_start += timedelta(days=1)
@@ -241,85 +267,42 @@ def download_and_extract(target_path, startdate=datetime(1978,1,1),
             os.makedirs(target_dir_year, exist_ok=True)
 
             fname = f"{curr_start.strftime('%Y%m%d')}_{curr_end.strftime('%Y%m%d')}.zip"
-            print(fname)
 
-            _ = download_c3ssm(c, sensor, years=[curr_year], months=ms,
-                               days=ds, version=version,
-                               aggregation=aggregation, max_retries=3,
-                               target_dir=target_dir_year, temp_filename=fname,
-                               keep_original=keep_original)
+            _, q = download_c3ssm(
+                c, product, years=[curr_year], months=ms,
+                days=ds, version=version,
+                freq=freq, max_retries=3,
+                target_dir=target_dir_year, temp_filename=fname,
+                keep_original=keep_original, dry_run=dry_run)
 
+            queries.append(q)
             curr_year += 1
 
-def mkdate(datestring:str) -> datetime:
-    # datestring to datetime
-    if len(datestring) == 10:
-        return datetime.strptime(datestring, '%Y-%m-%d')
-    if len(datestring) == 16:
-        return datetime.strptime(datestring, '%Y-%m-%dT%H:%M')
+    return queries
 
-def parse_args(args):
+def first_missing_date(last_date: str,
+                       freq: str = 'daily') -> datetime:
     """
-    Parse command line parameters for recursive download
-    Parameters
-    ----------
-    args : list
-        Command line parameters as list of strings
-    Returns
-    ----------
-    clparams : argparse.Namespace
-        Parsed command line parameters
+    For a product, based on the last available date, find the next
+    expected one.
     """
+    last_date = pd.to_datetime(last_date).to_pydatetime()
+    assert freq in ['daily', 'dekadal', 'monthly'], \
+        "Frequency must be daily, dekadal, or monthly"
+    if freq == 'daily':
+        next_date = last_date + relativedelta(days=1)
+    elif freq == 'monthly':
+        next_date = last_date + relativedelta(months=1)
+    elif freq == 'dekadal':
+        this_dekad = day2dekad(last_date.day)
+        if last_date.day not in [1, 11, 21]:
+            raise ValueError("Dekad day must be 1, 11 or 21")
+        if (this_dekad == 1) or (this_dekad == 2):
+            next_date = last_date + relativedelta(days=10)
+        else:
+            next_date = last_date + relativedelta(months=1)
+            next_date = datetime(next_date.year, next_date.month, 1)
 
-    parser = argparse.ArgumentParser(
-        description="Download C3S SM images between two dates. "
-                    "Before this program can be used, you have to register at the CDS "
-                    "and setup your .cdsapirc file as described here: "
-                    "https://cds.climate.copernicus.eu/api-how-to")
-    parser.add_argument("localroot",
-                        help='Root of local filesystem where the downloaded data will be stored.')
-    parser.add_argument("-s", "--start", type=mkdate,
-                        default='1979-01-01',
-                        help=("Startdate in format YYYY-MM-DD. "
-                              "If no data is found there then the first available date of the product is used."))
-    parser.add_argument("-e", "--end", type=mkdate,
-                        default=datetime.now().date().isoformat(),
-                        help=("Enddate in format YYYY-MM-DD. "
-                              "If not given then the current date is used."))
-    parser.add_argument("-agg", "--aggregation", type=str, default='daily',
-                        help=("The C3S SM sensor product aggregate to download. "
-                              "Choose one of 'daily', 'dekadal', 'monthly'. "
-                              "Default is 'daily'."))
-    parser.add_argument("-sp", "--sensor", type=str, default='combined',
-                        help=("The C3S SM sensor product to download. "
-                              "Choose one of 'combined', 'active', 'passive'. "
-                              "Default is 'combined'."))
-    parser.add_argument("-vers", "--version", type=str, default='v201706.0.0',
-                        help=("The C3S SM product version to download. "
-                              "Choose one that is on the CDS, e.g. 'v201706.0.0', 'v201912.0.0', ..."
-                              "Default is 'v201706.0.0'"))
-    parser.add_argument("-keep", "--keep_original", type=bool, default=False,
-                        help=("Also keep the originally, temporarily downloaded image stack instead of deleting it "
-                              "after extracting single images. Default is False."))
-
-    args = parser.parse_args(args)
-
-    print(f"Downloading C3S CDR/ICDR SM {args.aggregation} {args.sensor} "
-          f"from {args.start.isoformat()} to {args.end.isoformat()} into {args.localroot}")
-
-    return args
+    return next_date
 
 
-def main(args):
-    args = parse_args(args)
-    download_and_extract(target_path=args.localroot,
-                         startdate=args.start,
-                         enddate=args.end,
-                         sensor=args.sensor,
-                         aggregation=args.aggregation,
-                         version=args.version,
-                         keep_original=args.keep_original)
-
-
-def run():
-    main(sys.argv[1:])

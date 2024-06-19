@@ -8,11 +8,11 @@ import os
 import sys
 import argparse
 from datetime import datetime
-from pygeogrids.netcdf import load_grid
-import pandas as pd
 from repurpose.img2ts import Img2Ts
+from repurpose.process import ImageBaseConnection
 from c3s_sm.interface import C3S_Nc_Img_Stack
-from c3s_sm.interface import fntempl as _fntempl
+from c3s_sm.const import fntempl as _default_template
+from c3s_sm.download import infer_file_props
 import c3s_sm.metadata as metadata
 from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
 from smecv_grid.grid import SMECV_Grid_v052
@@ -46,7 +46,7 @@ def str2bool(val):
     else:
         return False
 
-def parse_filename(data_dir, fntempl):
+def parse_filename(data_dir, fntempl=_default_template):
     """
     Take the first file in the passed directory and use its file name to
     retrieve the product type, version number and variables in the file.
@@ -55,7 +55,7 @@ def parse_filename(data_dir, fntempl):
     ----------
     inroot : str
         Input root directory
-    fntempl: str
+    fntempl: str, optional (default: :const:`c3s_sm.const.fntempl`)
         Filename template
 
     Returns
@@ -82,36 +82,43 @@ def parse_filename(data_dir, fntempl):
 
 def reshuffle(input_root, outputpath, startdate, enddate,
               parameters=None, land_points=True, bbox=None,
-              ignore_meta=False, fntempl=_fntempl, imgbuffer=500):
+              ignore_meta=False, fntempl=_default_template, imgbuffer=250,
+              n_proc=1):
     """
     Reshuffle method applied to C3S data.
 
     Parameters
     ----------
-    input_root: string
+    input_root: str
         input path where c3s images were downloaded.
-    outputpath : string
+    outputpath : str, optional (default: None)
         Output path.
     startdate : datetime
-        Start date.
+        Start date. If None is passed, then we will try to detect the date of
+        the first available image file
     enddate : datetime
-        End date.
+        End date. If None is passed, then we will try to detect the date of
+        the last available image file
     parameters: list, optional (default: None)
-        parameters to read and convert
+        parameters to read and convert to time series. If None is passed, then
+        we use all available parameters from the input files.
     land_points : bool, optional (default: True)
         Use the land grid to calculate time series on.
         Leads to faster processing and smaller files.
     bbox : tuple, optional (default: None)
         Min lon, min lat, max lon, max lat
-        BBox to read data for.
+        BBox to read data for. Data outside the bbox is ignored in the
+        conversion step.
     ignore_meta : bool, optional (default: False)
         Ignore metadata and reshuffle only the values. Can be used e.g. if a
         version is not yet supported.
-    fntempl: str, optional (default: "C3S-SOILMOISTURE-L3S-SSM{unit}-{prod}-{temp}-{datetime}-{cdr}-{vers}.{subvers}.nc")
+    fntempl: str, optional (default: see :const:`c3s_sm.const.fntempl`)
         Template that image files follow, must contain a section {datetime}
-        where the date is pared from.
-    imgbuffer: int, optional (default: 50)
+        where the date is parsed from.
+    imgbuffer: int, optional (default: 250)
         How many images to read at once before writing time series.
+    n_proc: int, optional (default: 1)
+        Number of parallel processes to read and write data.
     """
 
     if land_points:
@@ -121,6 +128,7 @@ def reshuffle(input_root, outputpath, startdate, enddate,
 
     if bbox:
         grid = grid.subgrid_from_bbox(*bbox)
+
 
     if parameters is None:
         file_args, file_vars = parse_filename(input_root, fntempl=fntempl)
@@ -138,13 +146,15 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     if not ignore_meta:
         prod_args = input_dataset.fname_args
 
-        kwargs = {'sensor_type': prod_args['prod'].lower(),
-                  'cdr_type': prod_args['cdr'],
-                  'product_temp_res':  prod_args['temp'],
-                  'cls': getattr(metadata, f"C3S_SM_TS_Attrs_{prod_args['vers']}")}
+        kwargs = {
+            'sensor_type': prod_args['product'].lower(),
+            'cdr_type': prod_args['record'],
+            'freq':  prod_args['freq'],
+            'cls': getattr(metadata, f"C3S_SM_TS_Attrs_{prod_args['version']}")
+        }
 
-        if prod_args['temp'].upper() == 'DAILY':
-            kwargs.pop('product_temp_res')
+        if prod_args['freq'].upper() == 'DAILY':
+            kwargs.pop('freq')
             attrs = C3S_daily_tsatt_nc(**kwargs)
         else:
             attrs = C3S_dekmon_tsatt_nc(**kwargs)
@@ -161,137 +171,16 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     if not os.path.exists(outputpath):
         os.makedirs(outputpath)
 
+    # switch to circumvent imagebase connection (to speed up tests)
+    if os.environ.get("C3S_SM_NO_IMAGE_BASE_CONNECTION", "0") == "1":
+        pass
+    else:
+        input_dataset = ImageBaseConnection(input_dataset)
+
     reshuffler = Img2Ts(input_dataset=input_dataset, outputpath=outputpath,
                         startdate=startdate, enddate=enddate, input_grid=grid,
                         imgbuffer=imgbuffer, cellsize_lat=5.0,
-                        cellsize_lon=5.0, global_attr=global_attributes, zlib=True,
-                        unlim_chunksize=1000, ts_attributes=ts_attributes)
+                        cellsize_lon=5.0, global_attr=global_attributes,
+                        zlib=True, unlim_chunksize=1000,
+                        ts_attributes=ts_attributes, n_proc=n_proc)
     reshuffler.calc()
-
-
-def parse_args(args):
-    """
-    Parse command line parameters for C3S reshuffling.
-
-    Parameters
-    ----------
-    args : list of str
-        Command line parameters as list of strings.
-
-    Returns
-    -------
-    args : argparse.Namespace
-        Command line arguments.
-    """
-
-    parser = argparse.ArgumentParser(
-        description="Convert C3s image data to time series format.")
-    parser.add_argument("dataset_root",
-                        help='Root of local filesystem where the '
-                             'data is stored.')
-
-    parser.add_argument("timeseries_root",
-                        help='Root of local filesystem where the timeseries '
-                             'should be stored.')
-
-    parser.add_argument("start", type=mkdate,
-                        help=("Startdate. In format YYYY-MM-DD"))
-
-    parser.add_argument("end", type=mkdate,
-                        help=("Enddate. In format YYYY-MM-DD"))
-
-    parser.add_argument("--parameters", metavar="parameters", default=None,
-                        nargs="+",
-                        help=("Parameters to reshuffle into time series format. "
-                              "E.g. sm for creating soil moisture time series."
-                              "If None are passed, all variables from the first image file in the path are used."))
-
-    parser.add_argument("--land_points", type=str2bool, default='False',
-                        help=("Set True to convert only land points as defined"
-                              " in the C3s land mask (faster and less/smaller files)"))
-
-    parser.add_argument("--bbox", type=float, default=None, nargs=4,
-                        help=("min_lon min_lat max_lon max_lat. "
-                              "Bounding Box (lower left and upper right corner) "
-                              "of area to reshuffle (WGS84)"))
-
-    parser.add_argument("--ignore_meta", type=str2bool, default='False',
-                        help=("Do not apply image metadata to the time series."
-                              "E.g. for unsupported data versions."))
-
-    parser.add_argument("--fntempl", type=str, default=_fntempl,
-                        help=("Filename template to parse datetime from. Must contain"
-                              "a {datetime} placeholder"))
-
-
-    parser.add_argument("--imgbuffer", type=int, default=200,
-                        help=("How many images to read at once. Bigger "
-                              "numbers make the conversion faster but "
-                              "consume more memory."))
-
-    args = parser.parse_args(args)
-    # set defaults that can not be handled by argparse
-
-    print(f"Converting data from {args.start.isoformat()} to"
-          f" {args.end.isoformat()} into folder {args.timeseries_root}.")
-
-    return args
-
-
-def main(args):
-    """
-    Main routine used for command line interface.
-    Parameters
-    ----------
-    args : list of str
-        Command line arguments.
-    """
-    args = parse_args(args)
-
-    reshuffle(args.dataset_root,
-              args.timeseries_root,
-              args.start,
-              args.end,
-              args.parameters,
-              land_points=args.land_points,
-              bbox=args.bbox,
-              ignore_meta=args.ignore_meta,
-              imgbuffer=args.imgbuffer)
-
-def run():
-    main(sys.argv[1:])
-
-if __name__ == '__main__':
-    for mode in ['dekadal', 'monthly']:
-        if mode == 'dekadal':
-            folder = "061_dekadal_images"
-        elif mode == "monthly":
-            folder = "062_monthly_images"
-        else:
-            raise NotImplementedError()
-        reshuffle(f"/data-read/USERS/wpreimes/C3S_v202312/{folder}/combined",
-                  f"/data-write/USERS/wpreimes/C3S_v202312/time_series/combined-{mode}",
-                  datetime(1978,11,1),
-                  datetime(2023,12,31),
-                  ignore_meta=False,
-                  imgbuffer=3000,
-                  parameters=['sm', 'freqbandID', 'nobs', 'sensor'],
-                  )
-
-        reshuffle(f"/data-read/USERS/wpreimes/C3S_v202312/{folder}/passive",
-                  f"/data-write/USERS/wpreimes/C3S_v202312/time_series/passive-{mode}",
-                  datetime(1978,11,1),
-                  datetime(2023,12,31),
-                  ignore_meta=False,
-                  imgbuffer=3000,
-                  parameters=['sm', 'freqbandID', 'nobs', 'sensor'],
-                  )
-
-        reshuffle(f"/data-read/USERS/wpreimes/C3S_v202312/{folder}/active",
-                  f"/data-write/USERS/wpreimes/C3S_v202312/time_series/active-{mode}",
-                  datetime(1991, 8, 5),
-                  datetime(2023, 12, 31),
-                  ignore_meta=False,
-                  imgbuffer=3000,
-                  parameters=['sm', 'freqbandID', 'nobs', 'sensor'],
-                  )

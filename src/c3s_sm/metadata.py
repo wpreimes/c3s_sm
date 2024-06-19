@@ -128,7 +128,7 @@ class C3S_daily_tsatt_nc:
         self.version = self.general_attrs.version
         sensor_type = self.general_attrs.sensor_type
 
-        self.product_temp_res = 'daily'
+        self.freq = 'daily'
         self.cdr_type = cdr_type
         self.general_attrs.atts_sensor_type(sensor_type)
         self.general_attrs.dn_flag()
@@ -162,13 +162,13 @@ class C3S_daily_tsatt_nc:
 
         product_name = " ".join(['C3S', 'SOILMOISTURE', 'L3S',
                                  self.general_attrs.product_datatype_str[sensor_type].upper(),
-                                 sensor_type.upper(), self.product_temp_res.upper(),
+                                 sensor_type.upper(), self.freq.upper(),
                                  self.cdr_type.upper(),
                                  self.version])
 
         self.global_attr = {'product': product_name,
                             'resolution': '0.25 degree',
-                            'temporalspacing': self.product_temp_res}
+                            'temporalspacing': self.freq}
 
 
 class C3S_dekmon_tsatt_nc(object):
@@ -176,7 +176,7 @@ class C3S_dekmon_tsatt_nc(object):
     tcdr and icdr timeseries files."""
 
     def __init__(self,
-                 product_temp_res:str,
+                 freq:str,
                  cdr_type:str,
                  sensor_type:str,
                  cls):
@@ -186,7 +186,7 @@ class C3S_dekmon_tsatt_nc(object):
         self.version = self.general_attrs.version
         sensor_type = self.general_attrs.sensor_type
 
-        self.product_temp_res = product_temp_res
+        self.freq = freq
         self.cdr_type = cdr_type
         self.general_attrs.atts_sensor_type(sensor_type)
         self.general_attrs.dn_flag()
@@ -208,13 +208,13 @@ class C3S_dekmon_tsatt_nc(object):
         product_name = " ".join(['C3S', 'SOILMOISTURE', 'L3S',
                                  self.general_attrs.product_datatype_str[sensor_type].upper(),
                                  sensor_type.upper(),
-                                 self.product_temp_res.upper(),
+                                 self.freq.upper(),
                                  self.cdr_type.upper(),
                                  self.version])
 
         self.global_attr = {'product': product_name,
                             'resolution': '0.25 degree',
-                            'temporalspacing': self.product_temp_res}
+                            'temporalspacing': self.freq}
 
 
 class C3S_SM_TS_Attrs_v201706(C3S_SM_TS_Attrs):

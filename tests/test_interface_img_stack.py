@@ -50,7 +50,7 @@ def test_c3s_img_stack_multiple_img_reading_TCDR():
     path = os.path.join(os.path.dirname(__file__),
                         'c3s_sm-test-data', 'img', 'TCDR', '061_monthlyImages', 'combined')
 
-    ds = C3S_Nc_Img_Stack(path, parameters)
+    ds = C3S_Nc_Img_Stack(path, parameters, subpath_templ=None)
 
     row, col = None, None
     for i, img in enumerate(ds.iter_images(startdate, enddate)):
@@ -107,7 +107,7 @@ def test_c3s_img_stack_multiple_img_reading_ICDR():
 
 if __name__ == '__main__':
 
-    test_c3s_timestamp_for_daterange()
+    # test_c3s_timestamp_for_daterange()
     test_c3s_img_stack_multiple_img_reading_TCDR()
-    test_c3s_img_stack_single_img_reading()
-    test_c3s_img_stack_multiple_img_reading_ICDR()
+    # test_c3s_img_stack_single_img_reading()
+    # test_c3s_img_stack_multiple_img_reading_ICDR()

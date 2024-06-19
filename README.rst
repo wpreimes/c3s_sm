@@ -15,7 +15,8 @@ c3s_sm
 .. image:: https://readthedocs.org/projects/c3s_sm/badge/?version=latest
     :target: https://c3s-sm.readthedocs.io/en/latest/
 
-Reading and reshuffling of C3S soil moisture Written in Python.
+Processing tools and tutorials for users of the C3S satellite soil moisture
+service ( https://doi.org/10.24381/cds.d7782f18 ). Written in Python.
 
 Installation
 ============

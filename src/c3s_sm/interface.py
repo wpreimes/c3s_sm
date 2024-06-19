@@ -30,7 +30,6 @@ import os
 import netCDF4 as nc
 import numpy as np
 from datetime import timedelta
-from dateutil.relativedelta import relativedelta
 from netCDF4 import num2date
 
 from smecv_grid.grid import SMECV_Grid_v052
@@ -46,14 +45,7 @@ from datetime import datetime
 from parse import parse
 from cadati.dekad import dekad_index, dekad_startdate_from_date
 
-try:
-    import xarray as xr
-    xr_supported = True
-except ImportError:
-    xr_supported = False
-
-fntempl = "C3S-SOILMOISTURE-L3S-SSM{unit}-{prod}-{temp}-{datetime}-{cdr}-{vers}.{subvers}.nc"
-
+from c3s_sm.const import fntempl
 
 class C3SImg(ImageBase):
     """
@@ -93,15 +85,11 @@ class C3SImg(ImageBase):
 
         super(C3SImg, self).__init__(os.path.join(self.path, self.fname), mode=mode)
 
-        if parameters is None:
-            parameters = []
-        if type(parameters) != list:
-            parameters = [parameters]
+        self.parameters = np.atleast_1d(parameters) \
+            if parameters is not None else np.array([])
 
-        self.parameters = parameters
-
-        self.subgrid = subgrid # subset to read
-        self.grid = SMECV_Grid_v052(None) # global input image
+        self.subgrid = subgrid  # subset to read
+        self.grid = SMECV_Grid_v052(None)  # global input image
 
         self.flatten = flatten
 
@@ -144,7 +132,7 @@ class C3SImg(ImageBase):
                 param = ds.variables[parameter]
                 if param.ndim <= 1:
                     continue
-                data = param[:][0] # there is only 1 time stamp in the image
+                data = param[:][0]  # there is only 1 time stamp in the image
 
                 self.shape = (data.shape[0], data.shape[1])
 
@@ -158,9 +146,10 @@ class C3SImg(ImageBase):
 
                     common_dtype = np.find_common_type(
                         array_types=[data.dtype],
-                        scalar_types=[type(self.fillval[parameter])])
-                    self.fillval[parameter] = np.array([self.fillval[parameter]],
-                                                       dtype=common_dtype)[0]
+                        scalar_types=[type(self.fillval[parameter])]
+                    )
+                    self.fillval[parameter] = np.array(
+                        [self.fillval[parameter]], dtype=common_dtype)[0]
 
                     data = data.astype(common_dtype)
                     data = data.filled(self.fillval[parameter])
@@ -258,9 +247,9 @@ class C3SImg(ImageBase):
                                self.subgrid.activearrlon.max()
 
             corners = self.grid.gpi2rowcol([
-                self.grid.find_nearest_gpi(min_lon, min_lat)[0], # llc
-                self.grid.find_nearest_gpi(max_lon, min_lat)[0], # lrc
-                self.grid.find_nearest_gpi(max_lon, max_lat)[0], # urc
+                self.grid.find_nearest_gpi(min_lon, min_lat)[0],  # llc
+                self.grid.find_nearest_gpi(max_lon, min_lat)[0],  # lrc
+                self.grid.find_nearest_gpi(max_lon, max_lat)[0],  # urc
                 ])
 
             rows = slice(corners[0][0], corners[0][2] + 1)
@@ -336,8 +325,8 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
         self.fname_args = self._parse_filename(fntempl)
         self.solve_ambiguity = solve_ambiguity
         fn_args = self.fname_args.copy()
-        fn_args['subvers'] = '*'
-        fn_args['cdr'] = '*'
+        fn_args['subversion'] = '*'
+        fn_args['record'] = '*'
         filename_templ = fntempl.format(**fn_args)
 
         super(C3S_Nc_Img_Stack, self).__init__(path=data_path,
@@ -435,14 +424,14 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
             start_date and end_date
         """
 
-        if 'temp' not in self.fname_args:
-            self.fname_args['temp'] = 'DAILY'
+        if 'freq' not in self.fname_args:
+            self.fname_args['freq'] = 'DAILY'
 
-        if self.fname_args['temp'] == 'MONTHLY':
+        if self.fname_args['freq'] == 'MONTHLY':
             timestamps = pd.date_range(start_date, end_date, freq='MS').to_pydatetime()
-        elif self.fname_args['temp'] == 'DAILY':
+        elif self.fname_args['freq'] == 'DAILY':
             timestamps = pd.date_range(start_date, end_date, freq='D').to_pydatetime()
-        elif self.fname_args['temp'] == 'DEKADAL':
+        elif self.fname_args['freq'] == 'DEKADAL':
             timestamps = dekad_index(start_date, end_date).to_pydatetime()
             timestamps = [dekad_startdate_from_date(d) for d in timestamps]
         else:
@@ -510,14 +499,14 @@ class C3STs(GriddedNcOrthoMultiTs):
             ioclass_kws: dict
                 Optional keyword arguments to pass to OrthoMultiTs class:
                 ----------------------------------------------------------------
-                    read_bulk : boolean, optional (default:False)
-                        if set to True the data of all locations is read into memory,
-                        and subsequent calls to read_ts read from the cache and not from disk
-                        this makes reading complete files faster#
-                    read_dates : boolean, optional (default:False)
-                        if false dates will not be read automatically but only on specific
-                        request useable for bulk reading because currently the netCDF
-                        num2date routine is very slow for big datasets
+                read_bulk : boolean, optional (default:False)
+                    if set to True the data of all locations is read into memory,
+                    and subsequent calls to read_ts read from the cache and not from disk
+                    this makes reading complete files faster#
+                read_dates : boolean, optional (default:False)
+                    if false dates will not be read automatically but only on specific
+                    request useable for bulk reading because currently the netCDF
+                    num2date routine is very slow for big datasets
         """
 
         if isinstance(remove_nans, dict):
