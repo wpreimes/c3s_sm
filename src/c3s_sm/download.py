@@ -107,10 +107,11 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir,
     queries: dict[str, dict]
         icdr and cdr query that were submitted
     """
-    if not check_api_read():
-        raise ValueError("Cannot establish connection to CDS. Please set up"
-                         "your CDS API key as described at "
-                         "https://cds.climate.copernicus.eu/api-how-to")
+    if not dry_run:
+        if not check_api_read():
+            raise ValueError("Cannot establish connection to CDS. Please set up"
+                             "your CDS API key as described at "
+                             "https://cds.climate.copernicus.eu/api-how-to")
 
     if not os.path.exists(target_dir):
         raise IOError(f'Target path {target_dir} does not exist.')
@@ -220,10 +221,13 @@ def download_and_extract(target_path,
     dl_logger = logger(os.path.join(target_path,
         f"download_{'{:%Y%m%d%H%M%S.%f}'.format(datetime.now())}.log"))
 
-    c = cdsapi.Client(quiet=True,
-                      url=os.environ.get('CDSAPI_URL'),
-                      key=os.environ.get('CDSAPI_KEY'),
-                      error_callback=dl_logger)
+    if dry_run:
+        c = None
+    else:
+        c = cdsapi.Client(quiet=True,
+                          url=os.environ.get('CDSAPI_URL'),
+                          key=os.environ.get('CDSAPI_KEY'),
+                          error_callback=dl_logger)
     queries = []
 
     if freq == 'daily':
