@@ -5,6 +5,7 @@ import warnings
 from pathlib import Path
 import logging
 from datetime import datetime
+from plistlib import UID
 
 try:
     import xarray as xr
@@ -15,19 +16,27 @@ except ImportError:
 # CDSAPI_RC variable must be set or we use home dir
 dotrc = os.environ.get('CDSAPI_RC', os.path.join(Path.home(), '.cdsapirc'))
 
-if not os.path.isfile(dotrc):
-    url = os.environ.get('CDSAPI_URL')
-    key = os.environ.get('CDSAPI_KEY')
-    if url is None or key is None:
-        warnings.warn('CDS API URL or KEY not found, download will not work! '
-                      'Please set CDSAPI_URL and CDSAPI_KEY  or set up a '
-                      '.cdsapirc file as described here: '
-                      'https://cds.climate.copernicus.eu/api-how-to')
-        api_ready = False
+def check_api_read() -> bool:
+    if not os.path.isfile(dotrc):
+        url = os.environ.get('CDSAPI_URL')
+        key = os.environ.get('CDSAPI_KEY')
+        if url is None or key is None:
+            ValueError('CDS API KEY or .cdsapirc file not found, '
+                       'download will not work! '
+                       'Please create a .cdsapirc file with your credentials'
+                       'or pass your uid/key to the command line tool '
+                       'See: '
+                       'https://cds.climate.copernicus.eu/api-how-to')
+            api_ready = False
+        elif ":" not in key:
+            raise ValueError('Your CDS token is not valid. It must be in the format '
+                             '<UID>:<APIKEY>, both of which are found on your CDS'
+                             'profile page.')
+        else:
+            api_ready = True
     else:
         api_ready = True
-else:
-    api_ready = True
+    return api_ready
 
 variable_lut = {
     'combined': {'variable': 'volumetric_surface_soil_moisture',

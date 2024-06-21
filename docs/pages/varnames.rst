@@ -3,10 +3,8 @@ Variable names for C3S Soil Moisture
 
 C3S SM variables as in the netcdf image files (and time series from netcdf images) for different products and versions of C3S
 
-* Combined Product
-
 +-------------+---------------------------------+-------------------------------------------+
-| short_name  | Parameter                       |  Units                                    |
+| name        | Description                     |  Units                                    |
 +=============+=================================+===========================================+
 | freqbandID  | Frequency Band Identification   |                                           |
 +-------------+---------------------------------+-------------------------------------------+

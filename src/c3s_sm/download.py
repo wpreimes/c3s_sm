@@ -17,7 +17,7 @@ from dateutil.relativedelta import relativedelta
 from cadati.dekad import day2dekad
 
 from c3s_sm.const import fntempl as _default_template
-from c3s_sm.const import variable_lut, freq_lut, api_ready
+from c3s_sm.const import variable_lut, freq_lut, check_api_read
 
 
 def logger(fname, level=logging.DEBUG, verbose=False):
@@ -107,7 +107,7 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir,
     queries: dict[str, dict]
         icdr and cdr query that were submitted
     """
-    if not api_ready:
+    if not check_api_read():
         raise ValueError("Cannot establish connection to CDS. Please set up"
                          "your CDS API key as described at "
                          "https://cds.climate.copernicus.eu/api-how-to")
