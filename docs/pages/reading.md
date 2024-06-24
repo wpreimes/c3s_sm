@@ -1,6 +1,15 @@
 Reading C3S SM images
 ---------------------
 
+C3S SM images follow CF standards. Therefore, it is recommended to use
+libraries such as xarray to read the data.
+
+```
+import xarray as xr
+ds = xr.open_dataset("")```
+
+```
+
 Reading of the C3S SM raw netcdf files can be done in two ways.
 
 Reading by file name

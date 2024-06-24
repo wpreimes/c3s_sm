@@ -37,13 +37,18 @@ optional.
 Example command to download the daily passive product v202212 in the period from
 2019-05-01 to 2019-05-10 (change the token and target path accordingly).
 
+E.g.
 ```
 c3s_sm download /target/path -s 2019-05-01 -e 2019-05-10 --product passive 
 --freq daily -v v202212 --cds_token XXXX:xxxx-xxxxxx-xxxx-xxxx
 ```
 
+`--product` can be one of `active`, `combined` or `passive`. `--freq` is either
+`daily`, `monthly` or `dekadal` (10-daily). For more details see the --help 
+page.
+
 This will create a subfolder for each year in the target directory and store 
-individual downloaded images there.
+downloaded images there.
 
 ```
 /target/path/
@@ -55,3 +60,18 @@ individual downloaded images there.
 ```
 
 ## c3s_sm update
+
+This is a simpler version of `c3s_sm download` that is applied onto an existing
+data archive. The program will infer the product, sampling and version from
+the existing files, detect the last available date, and download any new files
+when they are available on CDS. The new files will be integrated in the local
+archive.
+
+E.g.
+```
+c3s_sm update /target/path --cds_token XXXX:xxxx-xxxxxx-xxxx-xxxx
+```
+
+requires that some (previously downloaded) files are available in /target/path.
+It will then check for matching new data online and download those.
+
