@@ -20,5 +20,6 @@ SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 echo "This DIR: $SCRIPTPATH"
 
 sudo docker build -t c3s_sm:$GIT_BRANCH_TAG_COMMIT \
-    --build-arg GIT_BRANCH_TAG_COMMIT=$GIT_BRANCH_TAG_COMMIT --build-arg GIT_URL=$GIT_URL\
+    --build-arg GIT_BRANCH_TAG_COMMIT=$GIT_BRANCH_TAG_COMMIT \
+    --build-arg GIT_URL=$GIT_URL \
     .
