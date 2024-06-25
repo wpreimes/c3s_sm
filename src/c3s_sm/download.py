@@ -108,6 +108,8 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir,
     queries: dict[str, dict]
         icdr and cdr query that were submitted
     """
+    logger = logging.getLogger('dl_logger')
+
     if not dry_run:
         if not check_api_read():
             raise ValueError("Cannot establish connection to CDS. Please set up"
@@ -229,11 +231,16 @@ def download_and_extract(target_path,
                           key=os.environ.get('CDSAPI_KEY'),
                           error_callback=dl_logger)
 
-    STATIC_KWARGS = {'client': c, 'keep_original': keep_original, 'dry_run': dry_run}
-    DYNAMIC_KWARGS = {'years': [], 'months': [], 'days': [], 'target_dir': [],
-                      'temp_filename': []}
+    STATIC_KWARGS = {
+        'c': c, 'keep_original': keep_original,
+        'dry_run': dry_run, 'sensor': product,
+        'version': version, 'freq': freq, 'max_retries': 3
+    }
 
-    queries = []
+    ITER_KWARGS = {
+        'years': [], 'months': [], 'days': [], 'target_dir': [],
+        'temp_filename': []
+    }
 
     if freq == 'daily':
         curr_start = startdate
@@ -255,14 +262,12 @@ def download_and_extract(target_path,
 
             target_dir_year = os.path.join(target_path, str(y))
 
-            # _, q = download_c3ssm(
-            #     c, product, years=[y], months=[m],
-            #     days=list(range(sd, d+1)), version=version,
-            #     freq=freq, max_retries=3,
-            #     target_dir=target_dir_year, temp_filename=fname,
-            #     keep_original=keep_original, dry_run=dry_run)
-            #
-            # queries.append(q)
+            ITER_KWARGS['years'].append([y])
+            ITER_KWARGS['months'].append([m])
+            ITER_KWARGS['days'].append(list(range(sd, d+1)))
+            ITER_KWARGS['target_dir'].append(target_dir_year)
+            ITER_KWARGS['temp_filename'].append(fname)
+
             curr_start = curr_end + timedelta(days=1)
 
     else:
@@ -295,15 +300,21 @@ def download_and_extract(target_path,
 
             fname = f"{curr_start.strftime('%Y%m%d')}_{curr_end.strftime('%Y%m%d')}.zip"
 
-            _, q = download_c3ssm(
-                c, product, years=[curr_year], months=ms,
-                days=ds, version=version,
-                freq=freq, max_retries=3,
-                target_dir=target_dir_year, temp_filename=fname,
-                keep_original=keep_original, dry_run=dry_run)
+            ITER_KWARGS['years'].append([curr_year])
+            ITER_KWARGS['months'].append(ms)
+            ITER_KWARGS['days'].append(ds)
+            ITER_KWARGS['target_dir'].append(target_dir_year)
+            ITER_KWARGS['temp_filename'].append(fname)
 
-            queries.append(q)
             curr_year += 1
+
+    results = parallel_process_async(download_c3ssm, STATIC_KWARGS=STATIC_KWARGS,
+                                     ITER_KWARGS=ITER_KWARGS, n_proc=1,
+                                     log_path=target_path, loglevel='INFO',
+                                     backend='threading', logger_name='dl_logger',
+                                     show_progress_bars=True)
+
+    success, queries = [r[0] for r in results], [r[1] for r in results]
 
     return queries
 
