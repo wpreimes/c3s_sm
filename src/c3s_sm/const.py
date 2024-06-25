@@ -13,6 +13,8 @@ try:
 except ImportError:
     xr_supported = False
 
+cds_api_url = "https://cds.climate.copernicus.eu/api/v2"
+
 # CDSAPI_RC variable must be set or we use home dir
 dotrc = os.environ.get('CDSAPI_RC', os.path.join(Path.home(), '.cdsapirc'))
 

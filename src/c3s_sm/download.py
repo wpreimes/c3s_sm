@@ -15,6 +15,7 @@ import pandas as pd
 from parse import parse
 from dateutil.relativedelta import relativedelta
 from cadati.dekad import day2dekad
+from repurpose.process import parallel_process_async
 
 from c3s_sm.const import fntempl as _default_template
 from c3s_sm.const import variable_lut, freq_lut, check_api_read
@@ -113,8 +114,7 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir,
                              "your CDS API key as described at "
                              "https://cds.climate.copernicus.eu/api-how-to")
 
-    if not os.path.exists(target_dir):
-        raise IOError(f'Target path {target_dir} does not exist.')
+        os.makedirs(target_dir, exist_ok=True)
 
     success = {'icdr': False, 'cdr': False}
     queries = {'icdr': None, 'cdr': None}
@@ -228,6 +228,11 @@ def download_and_extract(target_path,
                           url=os.environ.get('CDSAPI_URL'),
                           key=os.environ.get('CDSAPI_KEY'),
                           error_callback=dl_logger)
+
+    STATIC_KWARGS = {'client': c, 'keep_original': keep_original, 'dry_run': dry_run}
+    DYNAMIC_KWARGS = {'years': [], 'months': [], 'days': [], 'target_dir': [],
+                      'temp_filename': []}
+
     queries = []
 
     if freq == 'daily':
@@ -249,16 +254,15 @@ def download_and_extract(target_path,
                      f"{curr_end.strftime('%Y%m%d')}.zip")
 
             target_dir_year = os.path.join(target_path, str(y))
-            os.makedirs(target_dir_year, exist_ok=True)
 
-            _, q = download_c3ssm(
-                c, product, years=[y], months=[m],
-                days=list(range(sd, d+1)), version=version,
-                freq=freq, max_retries=3,
-                target_dir=target_dir_year, temp_filename=fname,
-                keep_original=keep_original, dry_run=dry_run)
-
-            queries.append(q)
+            # _, q = download_c3ssm(
+            #     c, product, years=[y], months=[m],
+            #     days=list(range(sd, d+1)), version=version,
+            #     freq=freq, max_retries=3,
+            #     target_dir=target_dir_year, temp_filename=fname,
+            #     keep_original=keep_original, dry_run=dry_run)
+            #
+            # queries.append(q)
             curr_start = curr_end + timedelta(days=1)
 
     else:
@@ -277,7 +281,7 @@ def download_and_extract(target_path,
             elif curr_year == enddate.year:
                 ms = [m for m in range(1, 13) if m <= enddate.month]
             else:
-                ms = list(range(1,13))
+                ms = list(range(1, 13))
 
             curr_start = datetime(curr_year, ms[0],
                 startdate.day if curr_year == startdate.year else ds[0])
@@ -288,7 +292,6 @@ def download_and_extract(target_path,
             curr_end = datetime(curr_year, ms[-1], ds[-1])
 
             target_dir_year = os.path.join(target_path, str(curr_year))
-            os.makedirs(target_dir_year, exist_ok=True)
 
             fname = f"{curr_start.strftime('%Y%m%d')}_{curr_end.strftime('%Y%m%d')}.zip"
 
@@ -329,4 +332,7 @@ def first_missing_date(last_date: str,
 
     return next_date
 
+
+if __name__ == '__main__':
+    pass
 
