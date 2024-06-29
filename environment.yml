@@ -1,3 +1,7 @@
+"""
+Contains all the required and optional (docs, testing etc.) dependencies.
+should be the same as pip install c3s_sm[complete]
+"""
 name: c3s_sm
 channels:
   - conda-forge
@@ -7,6 +11,9 @@ dependencies:
   - pandas
   - netcdf4
   - pyresample
+  - matplotlib
+  - xarray
+  - dask
   - ipykernel
   - pip
   - pip:

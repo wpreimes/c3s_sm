@@ -7,7 +7,7 @@ import numpy as np
 import numpy.testing as nptest
 from netCDF4 import Dataset
 
-from c3s_sm.reshuffle import parse_filename
+from c3s_sm.A import parse_filename
 from c3s_sm.interface import C3STs
 import pandas as pd
 import pytest

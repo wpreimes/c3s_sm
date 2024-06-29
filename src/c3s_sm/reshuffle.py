@@ -5,7 +5,10 @@ time series format using the repurpose package
 """
 
 import os
+import warnings
 from datetime import datetime
+
+import pandas as pd
 from repurpose.img2ts import Img2Ts
 from repurpose.process import ImageBaseConnection
 from c3s_sm.interface import C3S_Nc_Img_Stack
@@ -51,10 +54,16 @@ def parse_filename(data_dir, fntempl=_default_template):
     raise IOError('No file name in passed directory fits to template')
 
 
-def reshuffle(input_root, outputpath, startdate, enddate,
-              parameters=None, land_points=True, bbox=None,
-              ignore_meta=False, fntempl=_default_template, imgbuffer=250,
-              n_proc=1):
+def reshuffle(*args, **kwargs):
+    warnings.warn("`c3s_sm.reshuffle.reshuffle` is deprecated, "
+                  "use `c3s_sm.reshuffle.img2ts`",
+                  category=DeprecationWarning)
+    return img2ts(*args, **kwargs)
+
+def img2ts(input_root, outputpath, startdate, enddate,
+           parameters=None, land_points=True, bbox=None,
+           ignore_meta=False, fntempl=_default_template, imgbuffer=250,
+           n_proc=1):
     """
     Reshuffle method applied to C3S data.
 
@@ -64,10 +73,10 @@ def reshuffle(input_root, outputpath, startdate, enddate,
         input path where c3s images were downloaded.
     outputpath : str, optional (default: None)
         Output path.
-    startdate : datetime
+    startdate : datetime or str
         Start date. If None is passed, then we will try to detect the date of
         the first available image file
-    enddate : datetime
+    enddate : datetime or str
         End date. If None is passed, then we will try to detect the date of
         the last available image file
     parameters: list, optional (default: None)
@@ -104,6 +113,9 @@ def reshuffle(input_root, outputpath, startdate, enddate,
     if parameters is None:
         file_args, file_vars = parse_filename(input_root, fntempl=fntempl)
         parameters = [p for p in file_vars if p not in ['lat', 'lon', 'time']]
+
+    startdate = pd.to_datetime(startdate).to_pydatetime()
+    enddate = pd.to_datetime(enddate).to_pydatetime()
 
     subpath_templ = ('%Y',) if os.path.isdir(os.path.join(input_root, str(startdate.year))) else None
     input_dataset = C3S_Nc_Img_Stack(data_path=input_root,

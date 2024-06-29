@@ -4,7 +4,7 @@ import pandas as pd
 import click
 from c3s_sm.download import infer_file_props, download_and_extract, first_missing_date
 from c3s_sm.misc import get_first_image_date, get_last_image_date
-from c3s_sm.reshuffle import reshuffle
+from c3s_sm.reshuffle import img2ts
 from c3s_sm.const import fntempl as _default_template, check_api_read, cds_api_url
 
 
@@ -207,7 +207,7 @@ def cli_reshuffle(input_path, output_path, startdate, enddate, parameters,
     print(f"Converting data to time series from {startdate.isoformat()} "
           f"to {enddate.isoformat()} into folder {output_path}.")
 
-    reshuffle(input_path,
+    img2ts(input_path,
               output_path,
               startdate=startdate,
               enddate=enddate,

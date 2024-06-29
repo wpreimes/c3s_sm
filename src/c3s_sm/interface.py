@@ -24,6 +24,9 @@ from parse import parse
 from cadati.dekad import dekad_index, dekad_startdate_from_date
 
 from c3s_sm.const import fntempl
+from types import MappingProxyType
+
+_default_fillvalues = {'sm': np.nan, 'sm_uncertainty': np.nan, 't0': np.nan}
 
 class C3SImg(ImageBase):
     """
@@ -35,7 +38,7 @@ class C3SImg(ImageBase):
                  mode='r',
                  subgrid=SMECV_Grid_v052(None),
                  flatten=False,
-                 fillval=None):
+                 fillval=_default_fillvalues):
         """
         Parameters
         ----------
@@ -52,11 +55,14 @@ class C3SImg(ImageBase):
         flatten: bool, optional (default: False)
             If set then the data is read into 1D arrays. This is used to e.g
             reshuffle the data for a subset of points.
-        fillval : float or dict or None, optional (default: np.nan)
-            Fill Value for masked pixels, if a dict is passed, this can be
-            set for each parameter individually, otherwise it applies to all.
-            Note that choosing np.nan can lead to a change in dtype for some
-            (int) parameters. None will use the fill value from the netcdf file
+        fillval : float or dict or None, optional (default: None)
+            Value to use for masked pixels
+            - if a dict is passed, this can be set for each parameter
+            individually
+            - if a value is passed, it applies to all. Note that choosing
+            np.nan can lead to a change in dtype for some (int) parameters.
+            - `None` will use the fill value from the netcdf file e.g. -9999
+            for SM.
         """
         super(C3SImg, self).__init__(filename, mode=mode)
 
@@ -559,3 +565,8 @@ class C3STs(GriddedNcOrthoMultiTs):
 
     def write_ts(self, *args, **kwargs):
         pass
+
+
+if __name__ == '__main__':
+    img = C3SImg("../../tests/c3s_sm-test-data/img/TCDR/060_dailyImages/combined/2014/C3S-SOILMOISTURE-L3S-SSMV-COMBINED-DAILY-20140101000000-TCDR-v201801.0.0.nc")
+    ds = img.read()
