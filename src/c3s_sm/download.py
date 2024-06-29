@@ -43,7 +43,7 @@ def infer_file_props(path: str,
     """
     Parse file names to retrieve properties from :func:`c3s_sm.const.fntempl`.
     """
-    files = sorted(glob(os.path.join(path, '**', '*.nc')))
+    files = sorted(glob(os.path.join(path, '**', '*.nc'), recursive=True))
     if len(files) == 0:
         raise ValueError(f"No matching files for chosen template found in "
                          f"the directory {path}")

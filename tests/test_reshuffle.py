@@ -7,7 +7,7 @@ import numpy as np
 import numpy.testing as nptest
 from netCDF4 import Dataset
 
-from c3s_sm.A import parse_filename
+from c3s_sm.download import infer_file_props
 from c3s_sm.interface import C3STs
 import pandas as pd
 import pytest
@@ -18,7 +18,7 @@ def test_parse_filename():
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "c3s_sm-test-data", "img2ts", "combined")
 
-    file_args, file_vars = parse_filename(inpath)
+    file_args = infer_file_props(inpath)
 
     assert file_args['unit'] == 'V'
     assert file_args['product'] == 'COMBINED'
@@ -26,8 +26,6 @@ def test_parse_filename():
     assert file_args['record'] == 'TCDR'
     assert file_args['version'] == 'v201912'
     assert file_args['subversion'] == '0.0'
-
-    assert file_vars == [u'lat', u'lon', u'time', u'nobs', u'sensor', u'freqbandID', u'sm']
 
 def test_reshuffle_TCDR_daily_multiple_params():
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),

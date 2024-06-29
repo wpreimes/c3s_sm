@@ -7,7 +7,6 @@ from c3s_sm.misc import get_first_image_date, get_last_image_date
 from c3s_sm.reshuffle import img2ts
 from c3s_sm.const import fntempl as _default_template, check_api_read, cds_api_url
 
-
 @click.command("download", context_settings={'show_default': True},
                short_help="Download C3S SM data from Climate Data Store.")
 @click.argument("path", type=click.Path(writable=True))

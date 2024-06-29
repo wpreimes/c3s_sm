@@ -565,8 +565,3 @@ class C3STs(GriddedNcOrthoMultiTs):
 
     def write_ts(self, *args, **kwargs):
         pass
-
-
-if __name__ == '__main__':
-    img = C3SImg("../../tests/c3s_sm-test-data/img/TCDR/060_dailyImages/combined/2014/C3S-SOILMOISTURE-L3S-SSMV-COMBINED-DAILY-20140101000000-TCDR-v201801.0.0.nc")
-    ds = img.read()

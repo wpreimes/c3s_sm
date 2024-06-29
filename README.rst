@@ -21,16 +21,11 @@ service ( https://doi.org/10.24381/cds.d7782f18 ). Written in Python.
 Installation
 ============
 
-Setup of a complete environment with `conda
-<http://conda.pydata.org/miniconda.html>`_ can be performed using the following
-commands:
+The c3s_sm package can be installed via
 
 .. code-block:: shell
 
-  git clone git@github.com:TUW-GEO/c3s_sm.git c3s_sm
-  cd c3s_sm
-  conda env create -f environment.yml
-  source activate c3s_sm
+    pip install c3s_sm
 
 Tutorials
 =========

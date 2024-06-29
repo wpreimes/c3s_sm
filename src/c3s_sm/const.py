@@ -1,17 +1,7 @@
-import sys
 import os
 
-import warnings
 from pathlib import Path
-import logging
 from datetime import datetime
-from plistlib import UID
-
-try:
-    import xarray as xr
-    xr_supported = True
-except ImportError:
-    xr_supported = False
 
 cds_api_url = "https://cds.climate.copernicus.eu/api/v2"
 
