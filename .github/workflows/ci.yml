@@ -56,8 +56,9 @@ jobs:
       - name: Install dependencies and package
         shell: bash -l {0}
         run: |
-          conda install -c conda-forge pyresample netCDF4
-          pip install -e .[testing]
+          # conda install -c conda-forge pyresample netCDF4
+          pip install -e .
+          pip install pytest pytest-cov
       - name: Run all tests
         shell: bash -l {0}
         run: |      
