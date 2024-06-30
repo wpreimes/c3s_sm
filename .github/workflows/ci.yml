@@ -53,10 +53,10 @@ jobs:
           conda info -a
           which pip
           which python
-      - name: Install dependencies
+      - name: Install dependencies and package
         shell: bash -l {0}
         run: |
-          conda install -c conda-forge pyresample
+          conda install -c conda-forge pyresample netCDF4
           pip install -e .[testing]
       - name: Run all tests
         shell: bash -l {0}
