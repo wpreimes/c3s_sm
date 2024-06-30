@@ -35,7 +35,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: false
+          submodules: true
+          fetch-depth: 0
+          lfs: true
       - name: Checkout LFS objects
         run: git lfs checkout
       - uses: conda-incubator/setup-miniconda@v3
