@@ -314,6 +314,13 @@ def download_and_extract(target_path,
                                      backend='threading', logger_name='dl_logger',
                                      show_progress_bars=True)
 
+    handlers = dl_logger.handlers[:]
+
+    for handler in handlers:
+        dl_logger.removeHandler(handler)
+        handler.close()
+    handlers.clear()
+
     success, queries = [r[0] for r in results], [r[1] for r in results]
 
     return queries
