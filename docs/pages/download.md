@@ -38,7 +38,7 @@ Example command to download the daily passive product v202212 in the period from
 2019-05-01 to 2019-05-10 (change the token and target path accordingly).
 
 E.g.
-```
+```console
 c3s_sm download /target/path -s 2019-05-01 -e 2019-05-10 --product passive 
 --freq daily -v v202212 --cds_token XXXX:xxxx-xxxxxx-xxxx-xxxx
 ```
@@ -68,7 +68,7 @@ when they are available on CDS. The new files will be integrated in the local
 archive.
 
 E.g.
-```
+```console
 c3s_sm update /target/path --cds_token XXXX:xxxx-xxxxxx-xxxx-xxxx
 ```
 
