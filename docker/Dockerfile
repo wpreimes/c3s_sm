@@ -21,12 +21,9 @@ RUN git clone --recursive $GIT_URL && \
 
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
-# Other dependencies are installed from the conda yml file with mamba
-RUN cp c3s_sm/environment.yml .
-RUN cd c3s_sm && \
-    micromamba install -y -n base -f environment.yml &&  \
-    pip install . && \
-    micromamba clean --all --yes
+RUN micromamba install -y -n base -c conda-forge python=3.12
+RUN cd c3s_sm && pip install .
+RUN micromamba clean --all --yes
 
 # Clean up the src code, as it is installed now
 #RUN rm -rf c3s_sm

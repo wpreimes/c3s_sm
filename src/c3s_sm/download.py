@@ -8,17 +8,16 @@ import os
 from datetime import datetime, timedelta
 import calendar
 from zipfile import ZipFile
-from glob import glob
 import logging
 import cdsapi
 import pandas as pd
-from parse import parse
 from dateutil.relativedelta import relativedelta
 from cadati.dekad import day2dekad
 from repurpose.process import parallel_process_async
+import traceback
 
-from c3s_sm.const import fntempl as _default_template
 from c3s_sm.const import variable_lut, freq_lut, check_api_read
+from c3s_sm.misc import update_image_summary
 
 
 def logger(fname, level=logging.DEBUG, verbose=False):
@@ -36,33 +35,6 @@ def logger(fname, level=logging.DEBUG, verbose=False):
     assert os.path.exists(fname)
 
     return logger
-
-def infer_file_props(path: str,
-                     fntempl: str = _default_template,
-                     start_from='last') -> dict:
-    """
-    Parse file names to retrieve properties from :func:`c3s_sm.const.fntempl`.
-    """
-    files = sorted(glob(os.path.join(path, '**', '*.nc'), recursive=True))
-    if len(files) == 0:
-        raise ValueError(f"No matching files for chosen template found in "
-                         f"the directory {path}")
-    else:
-        if start_from.lower() == 'last':
-            files = files[::-1]
-        elif start_from.lower() == 'first':
-            pass
-        else:
-            raise NotImplementedError(f"`start_from` must be one of: "
-                                      f"`first`, `last`.")
-        for f in files[::-1]:
-            file_args = parse(fntempl,  os.path.basename(f))
-            if file_args is None:
-                continue
-            return file_args.named
-
-    raise ValueError(f"No matching files for chosen template found in the "
-                     f"directory {path}")
 
 
 def download_c3ssm(c, sensor, years, months, days, version, target_dir,
@@ -281,10 +253,13 @@ def download_and_extract(target_path,
 
         while curr_year <= enddate.year:
 
-            if curr_year == startdate.year:
+            if curr_year == startdate.year and curr_year != enddate.year:
                 ms = [m for m in range(1, 13) if m >= startdate.month]
-            elif curr_year == enddate.year:
+            elif curr_year == enddate.year and curr_year != startdate.year:
                 ms = [m for m in range(1, 13) if m <= enddate.month]
+            elif curr_year == startdate.year and curr_year == enddate.year:
+                ms = [m for m in range(1, 13) if ((m >= startdate.month) and
+                                                  (m <= enddate.month))]
             else:
                 ms = list(range(1, 13))
 
@@ -313,6 +288,12 @@ def download_and_extract(target_path,
                                      log_path=target_path, loglevel='INFO',
                                      backend='threading', logger_name='dl_logger',
                                      show_progress_bars=True)
+
+    try:
+        update_image_summary(target_path)
+    except ValueError as _:
+        dl_logger.error(f"Could not update image summary. "
+                        f"Error traceback: {traceback.format_exc()}")
 
     handlers = dl_logger.handlers[:]
 
@@ -350,7 +331,4 @@ def first_missing_date(last_date: str,
 
     return next_date
 
-
-if __name__ == '__main__':
-    pass
 

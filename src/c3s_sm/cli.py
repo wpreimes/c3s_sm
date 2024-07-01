@@ -2,8 +2,8 @@ import os
 from datetime import datetime
 import pandas as pd
 import click
-from c3s_sm.download import infer_file_props, download_and_extract, first_missing_date
-from c3s_sm.misc import get_first_image_date, get_last_image_date
+from c3s_sm.download import download_and_extract, first_missing_date
+from c3s_sm.misc import get_first_image_date, get_last_image_date, update_image_summary, infer_file_props
 from c3s_sm.reshuffle import img2ts
 from c3s_sm.const import fntempl as _default_template, check_api_read, cds_api_url
 
@@ -207,16 +207,16 @@ def cli_reshuffle(input_path, output_path, startdate, enddate, parameters,
           f"to {enddate.isoformat()} into folder {output_path}.")
 
     img2ts(input_path,
-              output_path,
-              startdate=startdate,
-              enddate=enddate,
-              parameters=parameters,
-              land_points=land,
-              bbox=bbox,
-              ignore_meta=ignore_meta,
-              fntempl=fntempl,
-              imgbuffer=imgbuffer,
-              n_proc=n_proc)
+           output_path,
+           startdate=startdate,
+           enddate=enddate,
+           parameters=parameters,
+           land_points=land,
+           bbox=bbox,
+           ignore_meta=ignore_meta,
+           fntempl=fntempl,
+           imgbuffer=imgbuffer,
+           n_proc=n_proc)
 
 @click.group(short_help="C3S SM Command Line Programs.")
 def c3s_sm():

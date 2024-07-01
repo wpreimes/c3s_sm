@@ -2,8 +2,9 @@ from tempfile import TemporaryDirectory
 import pandas as pd
 import os
 import pytest
-from c3s_sm.download import download_and_extract
 import subprocess
+from c3s_sm.download import download_and_extract
+from c3s_sm.misc import read_overview_yml
 
 def test_download_dry_run():
     with TemporaryDirectory() as outpath:
@@ -12,6 +13,11 @@ def test_download_dry_run():
             enddate=pd.to_datetime('2023-01-05').to_pydatetime(),
             version='v202212', dry_run=True,)
         assert len(queries) == 2
+
+        total_days = 0
+        for q in queries:
+            total_days += len(q['cdr']['request']['day'])
+        assert total_days == 12
 
         assert queries[0]['cdr']['request']['type_of_record'] == 'cdr'
         assert queries[0]['cdr']['request']['year'] == ['2022']
@@ -27,7 +33,7 @@ def test_download_dry_run():
 
 
 @pytest.mark.skipif("CDS_APIKEY" not in os.environ,
-                    reason="No CDS API key found")
+                    reason="No environment variable CDS_APIKEY key found")
 def test_download_with_token():
     with TemporaryDirectory() as outpath:
         args = [outpath] \
@@ -38,6 +44,13 @@ def test_download_with_token():
                + ['--version', 'v202212']
         subprocess.call(['c3s_sm', 'download', *args])
         files = os.listdir(os.path.join(outpath, '2022'))
+        assert len(files) == 2
         assert "C3S-SOILMOISTURE-L3S-SSMV-COMBINED-MONTHLY-20220601000000-TCDR-v202212.0.0.nc" in files
         assert "C3S-SOILMOISTURE-L3S-SSMV-COMBINED-MONTHLY-20220701000000-TCDR-v202212.0.0.nc" in files
 
+        path = os.path.join(outpath, "overview.yml")
+        assert os.path.isfile(path)
+        ovr = read_overview_yml(path)
+        assert ovr['period_from'] == '2022-06-01'
+        assert ovr['period_to'] == '2022-07-01'
+        assert ovr['version'] == 'v202212'

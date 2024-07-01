@@ -7,7 +7,7 @@ import numpy as np
 import numpy.testing as nptest
 from netCDF4 import Dataset
 
-from c3s_sm.download import infer_file_props
+from c3s_sm.misc import infer_file_props
 from c3s_sm.interface import C3STs
 import pandas as pd
 import pytest
@@ -18,7 +18,7 @@ def test_parse_filename():
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "c3s_sm-test-data", "img2ts", "combined")
 
-    file_args = infer_file_props(inpath)
+    file_args = infer_file_props(inpath, start_from='first')
 
     assert file_args['unit'] == 'V'
     assert file_args['product'] == 'COMBINED'

@@ -11,6 +11,7 @@ fi
 
 # Tag/branch/commit in https://git.eodc.eu/cci-sm-work/cci_sm_ecvps_py_src
 GIT_BRANCH_TAG_COMMIT=$1
+
 # TODO: Change to upstream repo
 GIT_URL="https://github.com/wpreimes/c3s_sm.git"
 
