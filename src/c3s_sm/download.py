@@ -190,9 +190,9 @@ def download_and_extract(target_path,
         raise ValueError(f"{freq} is not a supported frequency. "
                          f"Choose one of {list(freq_lut.keys())}")
 
-    os.makedirs(target_path, exist_ok=True)
+    os.makedirs(os.path.join(target_path, '000_log'), exist_ok=True)
 
-    dl_logger = logger(os.path.join(target_path,
+    dl_logger = logger(os.path.join(target_path, '000_log',
         f"download_{'{:%Y%m%d%H%M%S.%f}'.format(datetime.now())}.log"))
 
     if dry_run:

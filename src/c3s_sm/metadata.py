@@ -160,25 +160,33 @@ class C3S_daily_tsatt_nc:
             't0': {'full_name': 'Observation Timestamp',
                    'units': 'days since 1970-01-01 00:00:00 UTC'}}
 
+        _prod = sensor_type.upper()
+        _freq = self.freq.upper()
+        _cdr = self.cdr_type.upper()
+        _vers = self.version
+
         product_name = " ".join(['C3S', 'SOILMOISTURE', 'L3S',
                                  self.general_attrs.product_datatype_str[sensor_type].upper(),
-                                 sensor_type.upper(), self.freq.upper(),
-                                 self.cdr_type.upper(),
-                                 self.version])
+                                 _prod, _freq, _cdr, _vers])
 
-        self.global_attr = {'product': product_name,
-                            'resolution': '0.25 degree',
-                            'temporalspacing': self.freq}
+        self.global_attr = {'product_full_name': product_name,
+                            'product': str(_prod),
+                            'temporal_sampling': str(_freq),
+                            'cdr': str(_cdr),
+                            'version': str(_vers),
+                            'resolution': '0.25 degree'}
 
 
 class C3S_dekmon_tsatt_nc(object):
-    """Attributes for c3s dekadal and monthly for active, passive and combined
-    tcdr and icdr timeseries files."""
+    """
+    Attributes for c3s dekadal and monthly for active, passive and combined
+    tcdr and icdr timeseries files.
+    """
 
     def __init__(self,
-                 freq:str,
-                 cdr_type:str,
-                 sensor_type:str,
+                 freq: str,
+                 cdr_type: str,
+                 sensor_type: str,
                  cls):
 
         self.general_attrs = cls(sensor_type=sensor_type)
@@ -206,18 +214,21 @@ class C3S_dekmon_tsatt_nc(object):
                    'units': self.general_attrs.sm_units}
         }
 
+        _prod = sensor_type.upper()
+        _freq = self.freq.upper()
+        _cdr = self.cdr_type.upper()
+        _vers = self.version
+
         product_name = " ".join(['C3S', 'SOILMOISTURE', 'L3S',
                                  self.general_attrs.product_datatype_str[sensor_type].upper(),
-                                 sensor_type.upper(),
-                                 self.freq.upper(),
-                                 self.cdr_type.upper(),
-                                 self.version])
+                                 _prod, _freq, _cdr, _vers])
 
-        self.global_attr = {
-            'product': product_name,
-            'resolution': '0.25 degree',
-            'temporalspacing': self.freq
-        }
+        self.global_attr = {'product_full_name': product_name,
+                            'product': str(_prod),
+                            'temporal_sampling': str(_freq),
+                            'cdr': str(_cdr),
+                            'version': str(_vers),
+                            'resolution': '0.25 degree'}
 
 
 class C3S_SM_TS_Attrs_v201706(C3S_SM_TS_Attrs):

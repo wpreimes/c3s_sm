@@ -4,6 +4,8 @@ import pandas as pd
 import yaml
 from parse import parse
 from c3s_sm.const import fntempl as _default_template
+from netCDF4 import Dataset, num2date
+
 
 
 def infer_file_props(path: str,
@@ -42,6 +44,76 @@ def read_overview_yml(path: str) -> dict:
     with open(path, 'r') as stream:
         props = yaml.safe_load(stream)
     return props
+
+def update_ts_summary(data_path, out_file=None,
+                      fn_templ="[0-9][0-9][0-9][0-9].nc",
+                      verify_with=1):
+    """
+    Summarize time series metadata as yml file.
+    Open first cell file in data_path and extract the available time range.
+    If multiple files are available verify at least with 2 other files.
+    Then write the summary to out_file.
+    """
+    fl = glob(os.path.join(data_path, '**', fn_templ), recursive=True)
+
+    props = dict(period_from=None, period_to=None)
+
+    for v in ['product', 'temporal_sampling', 'version']:
+        props[v] = None
+
+    if len(fl) == 0:
+        raise ValueError(f"No matching files found in {data_path}")
+    if len(fl) <= verify_with:
+        verify_with = len(fl) - 1
+
+    i = 0
+    while i < verify_with:
+        with Dataset(fl[i], mode='r') as ds:
+            t = ds['time'][:]
+            units = ds['time'].getncattr('units')
+
+            kwargs = dict(times=t, units=units, only_use_cftime_datetimes=False,
+                          only_use_python_datetimes=True)
+            try:
+                calendar = ds['time'].getncattr('calendar')
+                kwargs['calendar'] = calendar
+            except AttributeError:
+                pass
+
+            dt = pd.DatetimeIndex(
+                num2date(**kwargs))
+
+            end_date = str(dt[-1].to_pydatetime())
+            start_date = str(dt[0].to_pydatetime())
+
+            if props['period_to'] is None:
+                props['period_to'] = end_date
+            else:
+                assert props['period_to'] == end_date, "Unexpected end date"
+
+            if props['period_from'] is None:
+                props['period_from'] = start_date
+            else:
+                assert props['period_from'] == start_date, "Unexpected start date"
+
+            for k in props.keys():
+                if k in ['period_from', 'period_to']:
+                    continue
+                else:
+                    if props[k] is None:
+                        try:
+                            p = ds.getncattr(k)
+                        except AttributeError:
+                            p = None
+                        props[k] = p
+
+        i += 1
+
+    if out_file is None:
+        out_file = os.path.join(data_path, f"overview.yml")
+
+    with open(out_file, 'w') as f:
+        yaml.dump(props, f, default_flow_style=False)
 
 def update_image_summary(data_path: str, out_file=None,
                          fntempl: str = _default_template):
@@ -136,3 +208,5 @@ def get_last_image_date(path: str, fntempl: str) -> str:
     return enddate
 
 
+if __name__ == '__main__':
+    read_overview_yml("/tmp/test/overview.yml")

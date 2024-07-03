@@ -5,20 +5,22 @@ time series format using the repurpose package
 """
 
 import os
+import shutil
 import warnings
 from datetime import datetime
-
 import pandas as pd
+from smecv_grid.grid import SMECV_Grid_v052
+from parse import parse
+from netCDF4 import Dataset
+import numpy as np
+
 from repurpose.img2ts import Img2Ts
 from repurpose.process import ImageBaseConnection
 from c3s_sm.interface import C3S_Nc_Img_Stack
 from c3s_sm.const import fntempl as _default_template
 import c3s_sm.metadata as metadata
 from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
-from smecv_grid.grid import SMECV_Grid_v052
-from parse import parse
-from netCDF4 import Dataset
-import numpy as np
+from c3s_sm.misc import update_ts_summary
 
 def parse_filename(data_dir, fntempl=_default_template):
     """
@@ -62,7 +64,8 @@ def reshuffle(*args, **kwargs):
 
 def img2ts(input_root, outputpath, startdate, enddate,
            parameters=None, land_points=True, bbox=None,
-           ignore_meta=False, fntempl=_default_template, imgbuffer=250,
+           ignore_meta=False, fntempl=_default_template,
+           replace_existing=False, imgbuffer=250,
            n_proc=1):
     """
     Reshuffle method applied to C3S data.
@@ -95,6 +98,10 @@ def img2ts(input_root, outputpath, startdate, enddate,
     fntempl: str, optional (default: see :const:`c3s_sm.const.fntempl`)
         Template that image files follow, must contain a section {datetime}
         where the date is parsed from.
+    replace_existing: bool, optional (default: False)
+        If this option is activated, then any existing files on the output
+        directory will be deleted before the conversion takes place.
+        Otherwise the program will try to append new data to existing files.
     imgbuffer: int, optional (default: 250)
         How many images to read at once before writing time series.
     n_proc: int, optional (default: 1)
@@ -151,6 +158,10 @@ def img2ts(input_root, outputpath, startdate, enddate,
         global_attributes = None
         ts_attributes = None
 
+    if replace_existing:
+        if os.path.exists(outputpath):
+            shutil.rmtree(outputpath)
+
     if not os.path.exists(outputpath):
         os.makedirs(outputpath)
 
@@ -167,3 +178,12 @@ def img2ts(input_root, outputpath, startdate, enddate,
                         zlib=True, unlim_chunksize=1000,
                         ts_attributes=ts_attributes, n_proc=n_proc)
     reshuffler.calc()
+
+    print('here')
+    update_ts_summary(outputpath, os.path.join(outputpath, 'overview.yml'))
+
+
+if __name__ == '__main__':
+    img2ts("/home/wpreimes/shares/climers/Projects/C3S2_312a/07_data/C3S_v202312/CDR_EODC/060_daily_images/combined",
+           '/tmp/test', '2020-10-01', '2020-10-10',
+           bbox=[-10, 40, 20, 60])

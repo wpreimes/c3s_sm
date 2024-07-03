@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+import datetime
 import os
 import glob
 from tempfile import TemporaryDirectory
@@ -7,8 +7,9 @@ import numpy as np
 import numpy.testing as nptest
 from netCDF4 import Dataset
 
-from c3s_sm.misc import infer_file_props
+from c3s_sm.misc import infer_file_props, read_overview_yml
 from c3s_sm.interface import C3STs
+from c3s_sm.reshuffle import img2ts
 import pandas as pd
 import pytest
 import subprocess
@@ -70,14 +71,23 @@ def test_reshuffle_TCDR_daily_multiple_params():
 
         nptest.assert_almost_equal(ts['sm'].values, ds.read(602942)['sm'].values)
 
+        p = os.path.join(ts_path, 'overview.yml')
+        assert os.path.isfile(p)
+        props = read_overview_yml(p)
+        assert props['period_from'] == str(pd.to_datetime(startdate).to_pydatetime())
+        assert props['period_to'] == str(pd.to_datetime(enddate).to_pydatetime())
+        assert props['version'] == "v201801"
+        assert props['temporal_sampling'] == "DAILY"
+        assert props['product'] == "ACTIVE"
+
         ds.close()
 
-@pytest.mark.parametrize("ignore_meta", [True, False])
+@pytest.mark.parametrize("ignore_meta", [False, True])
 def test_reshuffle_ICDR_monthly_single_param(ignore_meta):
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "c3s_sm-test-data", "img2ts", "combined")
     startdate = "2019-10-01"
-    enddate = "2020-01-31"
+    enddate = "2020-01-31"   # last file 2020-01-01
 
     a = subprocess.call(['c3s_sm', 'reshuffle', "--help"])
     assert a == 0
@@ -95,7 +105,10 @@ def test_reshuffle_ICDR_monthly_single_param(ignore_meta):
                + ['--n_proc', "2"]
 
         subprocess.call(['c3s_sm', 'reshuffle', *args])
-
+        # img2ts(inpath, ts_path, startdate, enddate,
+        #        bbox=[-10, 40, 10, 50], ignore_meta=ignore_meta,
+        #        imgbuffer=100, n_proc=1)
+        
         i = os.environ.pop("C3S_SM_NO_IMAGE_BASE_CONNECTION")
         assert int(i) == 1
 
@@ -122,5 +135,16 @@ def test_reshuffle_ICDR_monthly_single_param(ignore_meta):
 
         ts_sensor_values_should = np.array([768, 768, 256], dtype=np.float32)
         nptest.assert_allclose(ts['sensor'].values, ts_sensor_values_should, rtol=1e-5)
+
+        p = os.path.join(ts_path, 'overview.yml')
+        assert os.path.isfile(p)
+        props = read_overview_yml(p)
+        assert props['period_from'] == str(pd.to_datetime(startdate).to_pydatetime())
+        assert props['period_to'] == str(datetime.datetime(2020,1,1))
+        print(props)
+        if ignore_meta:
+            assert props['version'] is None
+            assert props['temporal_sampling'] is None
+            assert props['product'] is None
 
         ds.close()

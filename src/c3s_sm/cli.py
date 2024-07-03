@@ -164,6 +164,11 @@ def cli_update(path, fntempl, cds_token=None):
                    "follow the usual naming convention, a custom template can "
                    "be given here. Must contain {placeholder} fields for "
                    "{freq}, {product}, {version} and {datetime}.")
+@click.option("--overwrite", type=click.BOOL, default=False,
+              help="True or False | If this is True, then any files that already"
+                   " exist in the `output_path`, will be replaced by the newly "
+                   "created ones. If this is False, we try to append data to "
+                   "existing files.")
 @click.option('--imgbuffer', '-b', type=click.INT, default=250,
               help="NUMBER | Number of images to read into memory at once before "
                    "conversion to time series. A larger buffer means faster"
@@ -172,7 +177,8 @@ def cli_update(path, fntempl, cds_token=None):
               help="NUMBER | Number of parallel processes for reading and "
                    "writing data.")
 def cli_reshuffle(input_path, output_path, startdate, enddate, parameters,
-                  land, bbox, ignore_meta, fntempl, imgbuffer, n_proc):
+                  land, bbox, ignore_meta, fntempl, overwrite, imgbuffer,
+                  n_proc):
     """
     Convert C3S SM image data into a (5x5 degrees chunked) time series format
     following CF conventions for 'Orthogonal multidimensional array representation'
@@ -215,6 +221,7 @@ def cli_reshuffle(input_path, output_path, startdate, enddate, parameters,
            bbox=bbox,
            ignore_meta=ignore_meta,
            fntempl=fntempl,
+           replace_existing=overwrite,
            imgbuffer=imgbuffer,
            n_proc=n_proc)
 
