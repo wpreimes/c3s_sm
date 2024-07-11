@@ -120,7 +120,8 @@ def cli_update(path, fntempl, cds_token=None):
 
     startdate = first_missing_date(props['datetime'], freq=freq)
 
-    print(f"Fetching latest data for C3S SM CDR/ICDR {freq} {product} {version} "
+    print(f"Update C3S SM images: "
+          f"Fetching latest data for C3S SM CDR/ICDR {freq} {product} {version} "
           f"after {startdate.isoformat()} into {path}.")
 
     download_and_extract(path, startdate=startdate, freq=freq,
@@ -209,8 +210,11 @@ def cli_reshuffle(input_path, output_path, startdate, enddate, parameters,
     startdate = pd.to_datetime(startdate)
     enddate = pd.to_datetime(enddate)
 
-    print(f"Converting data to time series from {startdate.isoformat()} "
-          f"to {enddate.isoformat()} into folder {output_path}.")
+
+    print(f"Creating time series for image data from {input_path}.")
+    print(f"Parameters: {parameters} (`None` means all)")
+    print(f"From: {startdate.isoformat()}, To: {enddate.isoformat()}")
+    print(f"Into target directory: {output_path}")
 
     img2ts(input_path,
            output_path,

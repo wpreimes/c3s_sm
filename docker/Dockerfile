@@ -22,10 +22,14 @@ RUN git clone --recursive $GIT_URL && \
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 RUN micromamba install -y -n base -c conda-forge python=3.12
-RUN cd c3s_sm && pip install .
+RUN cd c3s_sm &&  \
+    pip install . &&\
+    pip uninstall repurpose --yes && \
+    pip install git+https://github.com/TUW-GEO/repurpose@e2d0d3ce8e666a4fbcd24de34a874d8850d2894a
+
 RUN micromamba clean --all --yes
 
 # Clean up the src code, as it is installed now
-#RUN rm -rf c3s_sm
+RUN rm -rf c3s_sm
 
 ENTRYPOINT ["/usr/local/bin/_entrypoint.sh"]

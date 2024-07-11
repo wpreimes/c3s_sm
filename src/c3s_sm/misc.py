@@ -110,7 +110,7 @@ def update_ts_summary(data_path, out_file=None,
         i += 1
 
     if out_file is None:
-        out_file = os.path.join(data_path, f"overview.yml")
+        out_file = os.path.join(data_path, f"000_overview.yml")
 
     with open(out_file, 'w') as f:
         yaml.dump(props, f, default_flow_style=False)
@@ -142,7 +142,7 @@ def update_image_summary(data_path: str, out_file=None,
     props['period_to'] = str(pd.to_datetime(last_image_date).date())
 
     if out_file is None:
-        out_file = os.path.join(data_path, f"overview.yml")
+        out_file = os.path.join(data_path, f"000_overview.yml")
 
     with open(out_file, 'w') as f:
         yaml.dump(props, f, default_flow_style=False)
@@ -206,7 +206,3 @@ def get_last_image_date(path: str, fntempl: str) -> str:
         raise ValueError('Could not infer end date from image files. '
                          'Please specify enddate manually.')
     return enddate
-
-
-if __name__ == '__main__':
-    read_overview_yml("/tmp/test/overview.yml")

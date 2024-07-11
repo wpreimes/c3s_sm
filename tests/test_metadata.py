@@ -61,7 +61,8 @@ def test_C3s_daily_tsatt_nc():
 
     t0_should = {'units': 'days since 1970-01-01 00:00:00 UTC',
                  'full_name': 'Observation Timestamp'}
-    for k, v in t0_should.items(): assert dob.ts_attributes['t0'][k] == v
+    for k, v in t0_should.items():
+        assert dob.ts_attributes['t0'][k] == v
 
 def test_C3s_dekmon_tsatt_nc():
     subtype = 'TCDR'

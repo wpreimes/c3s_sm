@@ -42,4 +42,4 @@ docs/_build/*
 cover/*
 MANIFEST
 
-*/_local_scripts/*
+.local

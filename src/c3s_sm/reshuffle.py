@@ -177,13 +177,7 @@ def img2ts(input_root, outputpath, startdate, enddate,
                         cellsize_lon=5.0, global_attr=global_attributes,
                         zlib=True, unlim_chunksize=1000,
                         ts_attributes=ts_attributes, n_proc=n_proc)
+
     reshuffler.calc()
 
-    print('here')
-    update_ts_summary(outputpath, os.path.join(outputpath, 'overview.yml'))
-
-
-if __name__ == '__main__':
-    img2ts("/home/wpreimes/shares/climers/Projects/C3S2_312a/07_data/C3S_v202312/CDR_EODC/060_daily_images/combined",
-           '/tmp/test', '2020-10-01', '2020-10-10',
-           bbox=[-10, 40, 20, 60])
+    update_ts_summary(outputpath, os.path.join(outputpath, '000_overview.yml'))

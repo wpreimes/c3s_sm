@@ -71,7 +71,7 @@ def test_reshuffle_TCDR_daily_multiple_params():
 
         nptest.assert_almost_equal(ts['sm'].values, ds.read(602942)['sm'].values)
 
-        p = os.path.join(ts_path, 'overview.yml')
+        p = os.path.join(ts_path, '000_overview.yml')
         assert os.path.isfile(p)
         props = read_overview_yml(p)
         assert props['period_from'] == str(pd.to_datetime(startdate).to_pydatetime())
@@ -136,7 +136,7 @@ def test_reshuffle_ICDR_monthly_single_param(ignore_meta):
         ts_sensor_values_should = np.array([768, 768, 256], dtype=np.float32)
         nptest.assert_allclose(ts['sensor'].values, ts_sensor_values_should, rtol=1e-5)
 
-        p = os.path.join(ts_path, 'overview.yml')
+        p = os.path.join(ts_path, '000_overview.yml')
         assert os.path.isfile(p)
         props = read_overview_yml(p)
         assert props['period_from'] == str(pd.to_datetime(startdate).to_pydatetime())

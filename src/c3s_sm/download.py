@@ -121,7 +121,8 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir,
                 try:
                     c.retrieve(**query)
                     success[record] = True
-                except Exception as _:
+                except Exception as e:
+                    logger.error(f"Error downloading file {dl_file}: {e}")
                     # delete the partly downloaded data and retry
                     if os.path.isfile(dl_file):
                         os.remove(dl_file)
@@ -133,6 +134,7 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir,
                 break
 
         if success[record]:
+            logger.info(f"Chunk downloaded: {dl_file}")
             with ZipFile(dl_file, 'r') as zip_file:
                 zip_file.extractall(target_dir)
 
@@ -285,8 +287,9 @@ def download_and_extract(target_path,
 
     results = parallel_process_async(download_c3ssm, STATIC_KWARGS=STATIC_KWARGS,
                                      ITER_KWARGS=ITER_KWARGS, n_proc=1,
-                                     log_path=target_path, loglevel='INFO',
-                                     backend='threading', logger_name='dl_logger',
+                                     log_path=os.path.join(target_path, '000_log'),
+                                     loglevel='INFO', backend='threading',
+                                     logger_name='dl_logger',
                                      show_progress_bars=True)
 
     try:
