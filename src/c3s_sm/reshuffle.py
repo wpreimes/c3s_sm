@@ -18,11 +18,12 @@ from pathlib import Path
 
 from repurpose.img2ts import Img2Ts
 from repurpose.process import ImageBaseConnection
+
 from c3s_sm.interface import C3S_Nc_Img_Stack
 from c3s_sm.const import fntempl as _default_template
 import c3s_sm.metadata as metadata
 from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
-from c3s_sm.misc import update_ts_summary_file, collect_ts_cov, read_summary_yml
+from c3s_sm.misc import update_ts_summary_file, collect_ts_cov, read_summary_yml, update_image_summary_file
 
 def reshuffle(*args, **kwargs):
     warnings.warn("`c3s_sm.reshuffle.reshuffle` is deprecated, "
@@ -64,7 +65,7 @@ def parse_filename(data_dir, fntempl=_default_template):
     raise IOError('No file name in passed directory fits to template')
 
 def extend_ts(img_path, ts_path, fntempl=_default_template, startdate=None,
-              n_proc=1):
+              freq=None, n_proc=1):
     """
     Append any new data from the image path to the time series data.
     This function is only applied to time series file that were created
@@ -84,13 +85,25 @@ def extend_ts(img_path, ts_path, fntempl=_default_template, startdate=None,
     startdate: str, optional (default: None)
         Date of the first image to append. If None, then we use the next
         available image to the last date in the time series.
+    freq: str, optional (default: None)
+        DAILY, DEKADAL or MONTHLY. If None is passed, freq must be inferable
+        from metadata.
     n_proc: int, optional (default: 1)
         Number of parallel processes to read and write data.
     """
     ts_props = read_summary_yml(ts_path)
-    img_props = read_summary_yml(img_path)
 
-    freq = ts_props['freq']
+    # _p = os.path.join(img_path, '000_overview.yml')
+    # if not os.path.exists(_p):
+    #     update_image_summary_file(_p)
+
+    try:
+        img_props = read_summary_yml(img_path)
+    except FileNotFoundError:
+        update_image_summary_file(img_path)
+        img_props = read_summary_yml(img_path)
+
+    freq = ts_props['freq'] if freq is None else freq
     kwargs = ts_props['img2ts_kwargs']
 
     if startdate is None:
@@ -114,26 +127,27 @@ def extend_ts(img_path, ts_path, fntempl=_default_template, startdate=None,
 
     kwargs["startdate"] = startdate
     kwargs["enddate"] = enddate
-    kwargs["input_root"] = img_path
+    kwargs["img_path"] = img_path
+    kwargs['fntempl'] = fntempl
 
-    img2ts(outputpath=ts_path, n_proc=n_proc, fntempl=fntempl, **kwargs)
+    img2ts(ts_path=ts_path, n_proc=n_proc, **kwargs)
 
-def img2ts(input_root, outputpath, startdate, enddate,
-           parameters=None, land_points=True, bbox=None, cells=None,
-           ignore_meta=False, fntempl=_default_template,
-           overwrite=False, imgbuffer=250, n_proc=1):
+def img2ts(img_path, ts_path, startdate, enddate, parameters=None,
+           land_points=True, bbox=None, cells=None, ignore_meta=False,
+           fntempl=_default_template, overwrite=False, imgbuffer=250,
+           n_proc=1):
     """
     Reshuffle method applied to C3S data.
 
     Parameters
     ----------
-    input_root: str
+    img_path: str
         input path where c3s images were downloaded.
-    outputpath : str, optional (default: None)
+    ts_path : str, optional (default: None)
         Output path.
     startdate : datetime or str
         Start date. If None is passed, then we will try to detect
-        the start of the available image files in input_root
+        the start of the available image files in img_path
     enddate : datetime or str
         End date. If None is passed, then we will try to detect the date of
         the last available image file
@@ -167,7 +181,7 @@ def img2ts(input_root, outputpath, startdate, enddate,
     n_proc: int, optional (default: 1)
         Number of parallel processes to read and write data.
     """
-    if Path(input_root) in Path(outputpath).parents:
+    if Path(img_path) in Path(ts_path).parents:
         raise ValueError("The time series directory can not be a subdirectory "
                          "of the image directory.")
 
@@ -182,14 +196,14 @@ def img2ts(input_root, outputpath, startdate, enddate,
         grid = grid.subgrid_from_cells(cells)
 
     if parameters is None:
-        file_args, file_vars = parse_filename(input_root, fntempl=fntempl)
+        file_args, file_vars = parse_filename(img_path, fntempl=fntempl)
         parameters = [p for p in file_vars if p not in ['lat', 'lon', 'time']]
 
     startdate = pd.to_datetime(startdate).to_pydatetime()
     enddate = pd.to_datetime(enddate).to_pydatetime()
 
-    subpath_templ = ('%Y',) if os.path.isdir(os.path.join(input_root, str(startdate.year))) else None
-    input_dataset = C3S_Nc_Img_Stack(data_path=input_root,
+    subpath_templ = ('%Y',) if os.path.isdir(os.path.join(img_path, str(startdate.year))) else None
+    input_dataset = C3S_Nc_Img_Stack(data_path=img_path,
                                      parameters=parameters,
                                      subgrid=grid,
                                      flatten=True,
@@ -229,19 +243,19 @@ def img2ts(input_root, outputpath, startdate, enddate,
         ts_attributes = None
 
     if overwrite:
-        if os.path.exists(outputpath):
-            shutil.rmtree(outputpath)
+        if os.path.exists(ts_path):
+            shutil.rmtree(ts_path)
 
-    if not os.path.exists(outputpath):
-        os.makedirs(outputpath)
+    if not os.path.exists(ts_path):
+        os.makedirs(ts_path)
 
-    # switch to circumvent imagebase connection (to speed up tests)
+    # secret switch to circumvent imagebase connection (to speed up tests)
     if os.environ.get("C3S_SM_NO_IMAGE_BASE_CONNECTION", "0") == "1":
         pass
     else:
         input_dataset = ImageBaseConnection(input_dataset)
 
-    reshuffler = Img2Ts(input_dataset=input_dataset, outputpath=outputpath,
+    reshuffler = Img2Ts(input_dataset=input_dataset, outputpath=ts_path,
                         startdate=startdate, enddate=enddate, input_grid=grid,
                         imgbuffer=imgbuffer, cellsize_lat=5.0,
                         cellsize_lon=5.0, global_attr=global_attributes,
@@ -252,14 +266,15 @@ def img2ts(input_root, outputpath, startdate, enddate,
     reshuffler.calc()
 
     kwargs = {'parameters': list(parameters), 'land_points': land_points,
-              'startdate': startdate, 'enddate': enddate,
-              'input_root': input_root,
+              'enddate': enddate,
+              'img_path': img_path,
               'cells': None if cells is None else list(cells),
               'bbox': None if bbox is None else list(bbox),
-              "fntempl": fntempl}
+              "fntempl": fntempl,
+              'ignore_meta': ignore_meta}
 
     props["img2ts_kwargs"] = kwargs
 
-    update_ts_summary_file(outputpath, collect_cov=False,
+    update_ts_summary_file(ts_path, collect_cov=False,
                            props=props)
 

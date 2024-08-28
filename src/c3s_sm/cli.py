@@ -4,7 +4,7 @@ import pandas as pd
 import click
 from c3s_sm.download import download_and_extract, first_missing_date
 from c3s_sm.misc import get_first_image_date, get_last_image_date, update_image_summary_file, img_infer_file_props
-from c3s_sm.reshuffle import img2ts
+from c3s_sm.reshuffle import img2ts, extend_ts
 from c3s_sm.const import fntempl as _default_template, check_api_read, cds_api_url
 
 @click.command("download", context_settings={'show_default': True},
@@ -44,6 +44,8 @@ def cli_download(path, startdate, enddate, product, freq, version,
     here: https://cds.climate.copernicus.eu/api-how-to
 
     \b
+    Required Parameters
+    -------------------
     PATH: string (required)
         Path where the downloaded C3S SM images are stored.
         Make sure to set up the CDS API for your account as describe in
@@ -72,7 +74,7 @@ def cli_download(path, startdate, enddate, product, freq, version,
                          keep_original=keep)
 
 
-@click.command("update", context_settings={'show_default': True},
+@click.command("update_img", context_settings={'show_default': True},
                short_help="Extend an existing record by downloading new files.")
 @click.argument("path", type=click.Path(writable=True))
 @click.option("--fntempl", type=click.STRING, default=_default_template,
@@ -83,7 +85,7 @@ def cli_download(path, startdate, enddate, product, freq, version,
               help="To identify with the CDS, required if no .cdsapi file exists. "
                    "Consists of your UID and API Key <UID:APIKEY>. Both can be "
                    "found on your CDS User profile page.")
-def cli_update(path, fntempl, cds_token=None):
+def cli_update_img(path, fntempl, cds_token=None):
     """
     Extend a locally existing C3S SM record by downloading new files that
     don't yet exist locally.
@@ -93,8 +95,8 @@ def cli_update(path, fntempl, cds_token=None):
     to update with this function.
 
     \b
-    Parameters
-    ----------
+    Required Parameters
+    -------------------
     PATH: string
         Path where previously downloaded C3S SM images are stored.
         Make sure to set up the CDS API for your account as describe in
@@ -130,8 +132,8 @@ def cli_update(path, fntempl, cds_token=None):
 
 @click.command("reshuffle", context_settings={'show_default': True},
                short_help="Convert C3S SM images into time series.")
-@click.argument("input_path", type=click.Path(readable=True))
-@click.argument("output_path", type=click.Path(writable=True))
+@click.argument("img_path", type=click.Path(readable=True))
+@click.argument("ts_path", type=click.Path(writable=True))
 @click.option('--startdate', '-s',
               type=click.STRING, default=None,
               help="Format YYYY-MM-DD | First image time stamp to include in the"
@@ -177,7 +179,7 @@ def cli_update(path, fntempl, cds_token=None):
 @click.option('--n_proc', '-n', type=click.INT, default=1,
               help="NUMBER | Number of parallel processes for reading and "
                    "writing data.")
-def cli_reshuffle(input_path, output_path, startdate, enddate, parameters,
+def cli_reshuffle(img_path, ts_path, startdate, enddate, parameters,
                   land, bbox, ignore_meta, fntempl, overwrite, imgbuffer,
                   n_proc):
     """
@@ -189,12 +191,12 @@ def cli_reshuffle(input_path, output_path, startdate, enddate, parameters,
     class.
 
     \b
-    Parameters
-    ----------
-    INPUT_PATH: string
+    Required Parameters
+    -------------------
+    IMG_PATH: string
         Path where previously downloaded C3S SM images are stored. Use the
         `c3s_sm download` command to retrieve image data.
-    OUTPUT_PATH: string
+    TS_PATH: string
         Path where the newly created time series files should be stored.
     """
     # The docstring above is slightly different to the normal python one to
@@ -203,21 +205,20 @@ def cli_reshuffle(input_path, output_path, startdate, enddate, parameters,
         parameters = None
 
     if startdate is None:
-        startdate = get_first_image_date(input_path, fntempl)
+        startdate = get_first_image_date(img_path, fntempl)
     if enddate is None:
-        enddate = get_last_image_date(input_path, fntempl)
+        enddate = get_last_image_date(ts_path, fntempl)
 
     startdate = pd.to_datetime(startdate)
     enddate = pd.to_datetime(enddate)
 
-
-    print(f"Creating time series for image data from {input_path}.")
+    print(f"Creating time series for image data from {img_path}.")
     print(f"Parameters: {parameters} (`None` means all)")
     print(f"From: {startdate.isoformat()}, To: {enddate.isoformat()}")
-    print(f"Into target directory: {output_path}")
+    print(f"Into target directory: {ts_path}")
 
-    img2ts(input_path,
-           output_path,
+    img2ts(img_path,
+           ts_path,
            startdate=startdate,
            enddate=enddate,
            parameters=parameters,
@@ -229,10 +230,47 @@ def cli_reshuffle(input_path, output_path, startdate, enddate, parameters,
            imgbuffer=imgbuffer,
            n_proc=n_proc)
 
+
+@click.command("update_ts", context_settings={'show_default': True},
+               short_help="Extend an existing time series record with "
+                          "available image data.")
+@click.argument("img_path", type=click.Path(readable=True))
+@click.argument("ts_path", type=click.Path(writable=True))
+@click.option("--freq", type=click.STRING, default=None,
+              help="This option can be used to manually specify whether DAILY,"
+                   "MONTHLY or DEKADAL data are processed.")
+@click.option("--fntempl", type=click.STRING, default=_default_template,
+              help="In case image files don't follow the usual naming convention, "
+                   "a custom template can be given here. Must contain fields "
+                   "`freq`, `prod`, `vers` and `datetime`")
+def cli_update_ts(img_path, ts_path, freq, fntempl):
+    """
+    Extend a locally existing C3S SM time series record by appending new data
+    from the image files. This will detect the time range of the time series
+    data and compare it against the available image data.
+    NOTE: Use the `c3s_sm reshuffle` program first do create a time series
+    record to update with this function.
+
+    \b
+    Required Parameters
+    -------------------
+    IMG_PATH: string
+        Path where previously downloaded C3S SM images are stored.
+    TS_PATH: string
+        Path where the time series to update are stored
+    """
+    # The docstring above is slightly different to the normal python one to
+    # display it properly on the command line.
+
+    print(f"Extend time series in {ts_path} with image data from {img_path}")
+    extend_ts(img_path, ts_path, fntempl=fntempl, freq=freq)
+
 @click.group(short_help="C3S SM Command Line Programs.")
 def c3s_sm():
     pass
 
+
 c3s_sm.add_command(cli_download)
-c3s_sm.add_command(cli_update)
+c3s_sm.add_command(cli_update_img)
 c3s_sm.add_command(cli_reshuffle)
+c3s_sm.add_command(cli_update_ts)

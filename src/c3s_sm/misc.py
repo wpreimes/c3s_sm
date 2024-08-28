@@ -95,7 +95,9 @@ def read_summary_yml(path: str) -> dict:
     """
     Read image summary and return fields as dict.
     """
-    with open(os.path.join(path, '000_overview.yml'), 'r') as stream:
+    path = os.path.join(path, '000_overview.yml')
+
+    with open(path, 'r') as stream:
         props = yaml.safe_load(stream)
 
     return props
