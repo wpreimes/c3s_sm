@@ -25,7 +25,7 @@ RUN micromamba install -y -n base -c conda-forge python=3.12
 RUN cd c3s_sm &&  \
     pip install . &&\
     pip uninstall repurpose --yes && \
-    pip install git+https://github.com/TUW-GEO/repurpose@e2d0d3ce8e666a4fbcd24de34a874d8850d2894a
+    pip install git+https://github.com/TUW-GEO/repurpose@9e233bacd8989b4fa6f7eebb699025ffd231b8e9
 
 RUN micromamba clean --all --yes
 

@@ -17,7 +17,7 @@ from repurpose.process import parallel_process_async
 import traceback
 
 from c3s_sm.const import variable_lut, freq_lut, check_api_read
-from c3s_sm.misc import update_image_summary
+from c3s_sm.misc import update_image_summary_file
 
 
 def logger(fname, level=logging.DEBUG, verbose=False):
@@ -293,7 +293,7 @@ def download_and_extract(target_path,
                                      show_progress_bars=True)
 
     try:
-        update_image_summary(target_path)
+        update_image_summary_file(target_path)
     except ValueError as _:
         dl_logger.error(f"Could not update image summary. "
                         f"Error traceback: {traceback.format_exc()}")
@@ -335,3 +335,5 @@ def first_missing_date(last_date: str,
     return next_date
 
 
+if __name__ == '__main__':
+    update_image_summary_file("/data-read/qa4sm-airflow-data/C3S/C3S_V202212/TCDR")

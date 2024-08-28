@@ -4,7 +4,7 @@ import os
 import pytest
 import subprocess
 from c3s_sm.download import download_and_extract
-from c3s_sm.misc import read_overview_yml
+from c3s_sm.misc import read_summary_yml
 
 def test_download_dry_run():
     with TemporaryDirectory() as outpath:
@@ -48,9 +48,7 @@ def test_download_with_token():
         assert "C3S-SOILMOISTURE-L3S-SSMV-COMBINED-MONTHLY-20220601000000-TCDR-v202212.0.0.nc" in files
         assert "C3S-SOILMOISTURE-L3S-SSMV-COMBINED-MONTHLY-20220701000000-TCDR-v202212.0.0.nc" in files
 
-        path = os.path.join(outpath, "overview.yml")
-        assert os.path.isfile(path)
-        ovr = read_overview_yml(path)
+        ovr = read_summary_yml(outpath)
         assert ovr['period_from'] == '2022-06-01'
         assert ovr['period_to'] == '2022-07-01'
         assert ovr['version'] == 'v202212'

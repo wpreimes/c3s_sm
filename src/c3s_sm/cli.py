@@ -3,7 +3,7 @@ from datetime import datetime
 import pandas as pd
 import click
 from c3s_sm.download import download_and_extract, first_missing_date
-from c3s_sm.misc import get_first_image_date, get_last_image_date, update_image_summary, infer_file_props
+from c3s_sm.misc import get_first_image_date, get_last_image_date, update_image_summary_file, img_infer_file_props
 from c3s_sm.reshuffle import img2ts
 from c3s_sm.const import fntempl as _default_template, check_api_read, cds_api_url
 
@@ -112,7 +112,7 @@ def cli_update(path, fntempl, cds_token=None):
 
     check_api_read()
 
-    props = infer_file_props(path, fntempl=fntempl, start_from='last')
+    props = img_infer_file_props(path, fntempl=fntempl, start_from='last')
 
     freq = props['freq'].lower()
     product = props['product'].lower()
@@ -225,7 +225,7 @@ def cli_reshuffle(input_path, output_path, startdate, enddate, parameters,
            bbox=bbox,
            ignore_meta=ignore_meta,
            fntempl=fntempl,
-           replace_existing=overwrite,
+           overwrite=overwrite,
            imgbuffer=imgbuffer,
            n_proc=n_proc)
 

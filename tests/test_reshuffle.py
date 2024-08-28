@@ -7,7 +7,7 @@ import numpy as np
 import numpy.testing as nptest
 from netCDF4 import Dataset
 
-from c3s_sm.misc import infer_file_props, read_overview_yml
+from c3s_sm.misc import img_infer_file_props, read_summary_yml
 from c3s_sm.interface import C3STs
 from c3s_sm.reshuffle import img2ts
 import pandas as pd
@@ -19,7 +19,7 @@ def test_parse_filename():
     inpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                           "c3s_sm-test-data", "img2ts", "combined")
 
-    file_args = infer_file_props(inpath, start_from='first')
+    file_args = img_infer_file_props(inpath, start_from='first')
 
     assert file_args['unit'] == 'V'
     assert file_args['product'] == 'COMBINED'
@@ -37,21 +37,26 @@ def test_reshuffle_TCDR_daily_multiple_params():
     with TemporaryDirectory() as ts_path:
         os.environ["C3S_SM_NO_IMAGE_BASE_CONNECTION"] = "1"
 
-        args = [inpath, ts_path] \
-               + ['-s', startdate] \
-               + ['-e', enddate] \
-               + ['-p', 'sm', '-p', 'sm_uncertainty'] \
-               + ['--land', 'True'] \
-               + ['--bbox', '70', '10', '80', '20'] \
-               + ['--n_proc', "2"]
-        subprocess.call(['c3s_sm', 'reshuffle', *args])
+        img2ts(inpath, ts_path, startdate, enddate,
+               ['sm', 'sm_uncertainty'], land_points=True,
+               bbox=[70, 10, 80, 20], n_proc=2, ignore_meta=False)
+
+        # args = [inpath, ts_path] \
+        #        + ['-s', startdate] \
+        #        + ['-e', enddate] \
+        #        + ['-p', 'sm', '-p', 'sm_uncertainty'] \
+        #        + ['--land', 'True'] \
+        #        + ['--bbox', '70', '10', '80', '20'] \
+        #        + ['--n_proc', "2"]
+        # subprocess.call(['c3s_sm', 'reshuffle', *args])
 
         i = os.environ.pop("C3S_SM_NO_IMAGE_BASE_CONNECTION")
         assert int(i) == 1
 
         assert len(glob.glob(os.path.join(ts_path, "*.nc"))) == 5
 
-        ds = C3STs(ts_path, remove_nans=True, parameters=['sm', 'sm_uncertainty'],
+        ds = C3STs(ts_path, remove_nans=True,
+                   parameters=['sm', 'sm_uncertainty'],
                    ioclass_kws={'read_bulk': True, 'read_dates': False})
         loc = 75.625, 14.625
         cell = ds.grid.gpi2cell(ds.grid.find_nearest_gpi(*loc)[0])
@@ -71,14 +76,12 @@ def test_reshuffle_TCDR_daily_multiple_params():
 
         nptest.assert_almost_equal(ts['sm'].values, ds.read(602942)['sm'].values)
 
-        p = os.path.join(ts_path, '000_overview.yml')
-        assert os.path.isfile(p)
-        props = read_overview_yml(p)
-        assert props['period_from'] == str(pd.to_datetime(startdate).to_pydatetime())
-        assert props['period_to'] == str(pd.to_datetime(enddate).to_pydatetime())
-        assert props['version'] == "v201801"
-        assert props['temporal_sampling'] == "DAILY"
-        assert props['product'] == "ACTIVE"
+        props = read_summary_yml(ts_path)
+        assert props['img2ts_kwargs']['startdate'] == pd.to_datetime(startdate).to_pydatetime()
+        assert props['img2ts_kwargs']['enddate'] == pd.to_datetime(enddate).to_pydatetime()
+        assert props['freq'] == "DAILY"
+        assert props['version'] == 'v201801'
+        assert props['sensor_type'] == 'active'
 
         ds.close()
 
@@ -136,15 +139,17 @@ def test_reshuffle_ICDR_monthly_single_param(ignore_meta):
         ts_sensor_values_should = np.array([768, 768, 256], dtype=np.float32)
         nptest.assert_allclose(ts['sensor'].values, ts_sensor_values_should, rtol=1e-5)
 
-        p = os.path.join(ts_path, '000_overview.yml')
-        assert os.path.isfile(p)
-        props = read_overview_yml(p)
-        assert props['period_from'] == str(pd.to_datetime(startdate).to_pydatetime())
-        assert props['period_to'] == str(datetime.datetime(2020,1,1))
+        props = read_summary_yml(ts_path)
+        assert props['img2ts_kwargs']['startdate'] == pd.to_datetime(startdate).to_pydatetime()
+        assert props['img2ts_kwargs']['enddate'] == datetime.datetime(2020,1,31)
         print(props)
         if ignore_meta:
-            assert props['version'] is None
-            assert props['temporal_sampling'] is None
-            assert props['product'] is None
+            assert props['version']=='unknown'
+            assert props['freq']=='unknown'
+            assert props['sensor_type']=='unknown'
 
         ds.close()
+
+
+if __name__ == '__main__':
+    test_reshuffle_ICDR_monthly_single_param(True)
