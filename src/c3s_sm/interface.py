@@ -24,7 +24,6 @@ from parse import parse
 from cadati.dekad import dekad_index, dekad_startdate_from_date
 
 from c3s_sm.const import fntempl
-from types import MappingProxyType
 
 _default_fillvalues = {'sm': np.nan, 'sm_uncertainty': np.nan, 't0': np.nan}
 

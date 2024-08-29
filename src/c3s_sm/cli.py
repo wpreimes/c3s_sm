@@ -3,7 +3,7 @@ from datetime import datetime
 import pandas as pd
 import click
 from c3s_sm.download import download_and_extract, first_missing_date
-from c3s_sm.misc import get_first_image_date, get_last_image_date, update_image_summary_file, img_infer_file_props
+from c3s_sm.misc import get_first_image_date, get_last_image_date, img_infer_file_props
 from c3s_sm.reshuffle import img2ts, extend_ts
 from c3s_sm.const import fntempl as _default_template, check_api_read, cds_api_url
 
@@ -82,9 +82,10 @@ def cli_download(path, startdate, enddate, product, freq, version,
                    "a custom template can be given here. Must contain fields "
                    "`freq`, `prod`, `vers` and `datetime`")
 @click.option("--cds_token", type=click.STRING, default=None,
-              help="To identify with the CDS, required if no .cdsapi file exists. "
+              help="To identify with the CDS. Required if no .cdsapi file exists. "
+                   "In the home directory (see documentation)."
                    "Consists of your UID and API Key <UID:APIKEY>. Both can be "
-                   "found on your CDS User profile page.")
+                   "found under your CDS User profile page.")
 def cli_update_img(path, fntempl, cds_token=None):
     """
     Extend a locally existing C3S SM record by downloading new files that
@@ -240,9 +241,9 @@ def cli_reshuffle(img_path, ts_path, startdate, enddate, parameters,
               help="This option can be used to manually specify whether DAILY,"
                    "MONTHLY or DEKADAL data are processed.")
 @click.option("--fntempl", type=click.STRING, default=_default_template,
-              help="In case image files don't follow the usual naming convention, "
-                   "a custom template can be given here. Must contain fields "
-                   "`freq`, `prod`, `vers` and `datetime`")
+              help="In case image files don't follow the usual naming "
+                   "convention, a custom template can be given here. Must "
+                   "contain fields `freq`, `prod`, `vers` and `datetime`")
 def cli_update_ts(img_path, ts_path, freq, fntempl):
     """
     Extend a locally existing C3S SM time series record by appending new data

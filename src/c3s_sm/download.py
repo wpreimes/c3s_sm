@@ -333,7 +333,3 @@ def first_missing_date(last_date: str,
             next_date = datetime(next_date.year, next_date.month, 1)
 
     return next_date
-
-
-if __name__ == '__main__':
-    update_image_summary_file("/data-read/qa4sm-airflow-data/C3S/C3S_V202212/TCDR")

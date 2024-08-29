@@ -93,10 +93,6 @@ def extend_ts(img_path, ts_path, fntempl=_default_template, startdate=None,
     """
     ts_props = read_summary_yml(ts_path)
 
-    # _p = os.path.join(img_path, '000_overview.yml')
-    # if not os.path.exists(_p):
-    #     update_image_summary_file(_p)
-
     try:
         img_props = read_summary_yml(img_path)
     except FileNotFoundError:
