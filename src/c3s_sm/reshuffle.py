@@ -9,6 +9,7 @@ import shutil
 import warnings
 from datetime import datetime
 import pandas as pd
+import pygeogrids
 from smecv_grid.grid import SMECV_Grid_v052
 from parse import parse
 from netCDF4 import Dataset
@@ -23,7 +24,11 @@ from c3s_sm.interface import C3S_Nc_Img_Stack
 from c3s_sm.const import fntempl as _default_template
 import c3s_sm.metadata as metadata
 from c3s_sm.metadata import C3S_daily_tsatt_nc, C3S_dekmon_tsatt_nc
-from c3s_sm.misc import update_ts_summary_file, collect_ts_cov, read_summary_yml, update_image_summary_file
+from c3s_sm.misc import (
+    update_ts_summary_file,
+    read_summary_yml,
+    update_image_summary_file,
+)
 
 def reshuffle(*args, **kwargs):
     warnings.warn("`c3s_sm.reshuffle.reshuffle` is deprecated, "
@@ -251,10 +256,15 @@ def img2ts(img_path, ts_path, startdate, enddate, parameters=None,
     else:
         input_dataset = ImageBaseConnection(input_dataset)
 
+    if isinstance(grid, pygeogrids.CellGrid):
+        _cellsize = None
+    else:
+        _cellsize = 5
+
     reshuffler = Img2Ts(input_dataset=input_dataset, outputpath=ts_path,
                         startdate=startdate, enddate=enddate, input_grid=grid,
-                        imgbuffer=imgbuffer, cellsize_lat=5.0,
-                        cellsize_lon=5.0, global_attr=global_attributes,
+                        imgbuffer=imgbuffer, cellsize_lat=_cellsize,
+                        cellsize_lon=_cellsize, global_attr=global_attributes,
                         zlib=True, unlim_chunksize=1000,
                         ts_attributes=ts_attributes, n_proc=n_proc,
                         backend='multiprocessing')

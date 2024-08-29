@@ -23,9 +23,7 @@ ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
 RUN micromamba install -y -n base -c conda-forge python=3.12
 RUN cd c3s_sm &&  \
-    pip install . &&\
-    pip uninstall repurpose --yes && \
-    pip install git+https://github.com/TUW-GEO/repurpose@9e233bacd8989b4fa6f7eebb699025ffd231b8e9
+    pip install .
 
 RUN micromamba clean --all --yes
 

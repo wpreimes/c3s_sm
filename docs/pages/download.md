@@ -59,7 +59,7 @@ downloaded images there.
 ├── .../
 ```
 
-## c3s_sm update
+## c3s_sm update_img
 
 This is a simpler version of `c3s_sm download` that is applied onto an existing
 data archive. The program will infer the product, sampling and version from
@@ -69,7 +69,7 @@ archive.
 
 E.g.
 ```console
-c3s_sm update /target/path --cds_token XXXX:xxxx-xxxxxx-xxxx-xxxx
+c3s_sm update_img /target/path --cds_token XXXX:xxxx-xxxxxx-xxxx-xxxx
 ```
 
 requires that some (previously downloaded) files are available in /target/path.
