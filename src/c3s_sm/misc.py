@@ -8,6 +8,7 @@ from c3s_sm.const import fntempl as _default_template
 import xarray as xr
 from repurpose.process import parallel_process
 
+
 def collect_ts_cov(data_path: str, n_proc=1, progressbar=False):
     """
     Open all time series files in a directory (slow) and detect the
@@ -26,8 +27,9 @@ def collect_ts_cov(data_path: str, n_proc=1, progressbar=False):
         Periods coverged by the time series files.
         {(start, end): [cell, cell, ...], ...}
     """
-    fl = glob(os.path.join(data_path, '**', "[0-9][0-9][0-9][0-9].nc"),
-              recursive=True)
+    fl = glob(
+        os.path.join(data_path, '**', "[0-9][0-9][0-9][0-9].nc"),
+        recursive=True)
 
     if len(fl) == 0:
         raise ValueError(f"No matching files found in {data_path}")
@@ -41,9 +43,12 @@ def collect_ts_cov(data_path: str, n_proc=1, progressbar=False):
 
         return start, end, cell, parameters
 
-    se = parallel_process(_func, ITER_KWARGS=dict(f=fl),
-                          show_progress_bars=progressbar,
-                          backend='threading', n_proc=n_proc)
+    se = parallel_process(
+        _func,
+        ITER_KWARGS=dict(f=fl),
+        show_progress_bars=progressbar,
+        backend='threading',
+        n_proc=n_proc)
 
     periods = {}
     parameters = None
@@ -82,7 +87,7 @@ def img_infer_file_props(path: str,
             raise NotImplementedError(f"`start_from` must be one of: "
                                       f"`first`, `last`.")
         for f in files:
-            file_args = parse(fntempl,  os.path.basename(f))
+            file_args = parse(fntempl, os.path.basename(f))
             if file_args is None:
                 continue
             return file_args.named
@@ -101,6 +106,7 @@ def read_summary_yml(path: str) -> dict:
         props = yaml.safe_load(stream)
 
     return props
+
 
 def get_first_image_date(path: str, fntempl: str = _default_template) -> str:
     """
@@ -123,8 +129,7 @@ def get_first_image_date(path: str, fntempl: str = _default_template) -> str:
         Parse date from the first found image file that matches `fntempl`.
     """
     try:
-        props = img_infer_file_props(
-            path, fntempl=fntempl, start_from='first')
+        props = img_infer_file_props(path, fntempl=fntempl, start_from='first')
         startdate = props['datetime']
     except ValueError:
         raise ValueError('Could not infer start date from image files. '
@@ -160,6 +165,7 @@ def get_last_image_date(path: str, fntempl: str) -> str:
                          'Please specify enddate manually.')
     return enddate
 
+
 def update_image_summary_file(data_path: str,
                               out_file=None,
                               fntempl: str = _default_template):
@@ -192,6 +198,7 @@ def update_image_summary_file(data_path: str,
 
     with open(out_file, 'w') as f:
         yaml.dump(props, f, default_flow_style=False)
+
 
 def update_ts_summary_file(data_path, props=None, collect_cov=False, **kwargs):
     """
@@ -229,9 +236,10 @@ def update_ts_summary_file(data_path, props=None, collect_cov=False, **kwargs):
         i = 1
         for startend, cells in periods.items():
             props[f'period{i}'] = dict(
-                start=str(startend[0]), end=str(startend[1]),
-                N=len(cells), cells=sorted(cells)
-            )
+                start=str(startend[0]),
+                end=str(startend[1]),
+                N=len(cells),
+                cells=sorted(cells))
 
     out_file = os.path.join(data_path, f"000_overview.yml")
 

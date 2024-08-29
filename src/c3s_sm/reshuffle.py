@@ -30,11 +30,14 @@ from c3s_sm.misc import (
     update_image_summary_file,
 )
 
+
 def reshuffle(*args, **kwargs):
-    warnings.warn("`c3s_sm.reshuffle.reshuffle` is deprecated, "
-                  "use `c3s_sm.reshuffle.img2ts`",
-                  category=DeprecationWarning)
+    warnings.warn(
+        "`c3s_sm.reshuffle.reshuffle` is deprecated, "
+        "use `c3s_sm.reshuffle.img2ts`",
+        category=DeprecationWarning)
     return img2ts(*args, **kwargs)
+
 
 def parse_filename(data_dir, fntempl=_default_template):
     """
@@ -64,13 +67,18 @@ def parse_filename(data_dir, fntempl=_default_template):
             else:
                 file_args = file_args.named
                 file_args['datetime'] = '{datetime}'
-                file_vars = Dataset(os.path.join(curr,f)).variables.keys()
+                file_vars = Dataset(os.path.join(curr, f)).variables.keys()
                 return file_args, list(file_vars)
 
     raise IOError('No file name in passed directory fits to template')
 
-def extend_ts(img_path, ts_path, fntempl=_default_template, startdate=None,
-              freq=None, n_proc=1):
+
+def extend_ts(img_path,
+              ts_path,
+              fntempl=_default_template,
+              startdate=None,
+              freq=None,
+              n_proc=1):
     """
     Append any new data from the image path to the time series data.
     This function is only applied to time series file that were created
@@ -117,8 +125,7 @@ def extend_ts(img_path, ts_path, fntempl=_default_template, startdate=None,
         else:
             raise ValueError(
                 f'Unexpected frequency found: {freq}. One of daily, '
-                f'dekadal, monthly is expected.'
-            )
+                f'dekadal, monthly is expected.')
 
         startdate = pd.to_datetime(kwargs['enddate']) + dt
     else:
@@ -133,9 +140,19 @@ def extend_ts(img_path, ts_path, fntempl=_default_template, startdate=None,
 
     img2ts(ts_path=ts_path, n_proc=n_proc, **kwargs)
 
-def img2ts(img_path, ts_path, startdate, enddate, parameters=None,
-           land_points=True, bbox=None, cells=None, ignore_meta=False,
-           fntempl=_default_template, overwrite=False, imgbuffer=250,
+
+def img2ts(img_path,
+           ts_path,
+           startdate,
+           enddate,
+           parameters=None,
+           land_points=True,
+           bbox=None,
+           cells=None,
+           ignore_meta=False,
+           fntempl=_default_template,
+           overwrite=False,
+           imgbuffer=250,
            n_proc=1):
     """
     Reshuffle method applied to C3S data.
@@ -189,7 +206,8 @@ def img2ts(img_path, ts_path, startdate, enddate, parameters=None,
     grid = SMECV_Grid_v052('land') if land_points else SMECV_Grid_v052(None)
 
     if (bbox is not None) and (cells is not None):
-        raise ValueError("Please either pass a bounding box or cells, not both")
+        raise ValueError(
+            "Please either pass a bounding box or cells, not both")
 
     if bbox:
         grid = grid.subgrid_from_bbox(*bbox)
@@ -203,14 +221,19 @@ def img2ts(img_path, ts_path, startdate, enddate, parameters=None,
     startdate = pd.to_datetime(startdate).to_pydatetime()
     enddate = pd.to_datetime(enddate).to_pydatetime()
 
-    subpath_templ = ('%Y',) if os.path.isdir(os.path.join(img_path, str(startdate.year))) else None
-    input_dataset = C3S_Nc_Img_Stack(data_path=img_path,
-                                     parameters=parameters,
-                                     subgrid=grid,
-                                     flatten=True,
-                                     fillval={'sm': np.nan, 'flag': 2**8},
-                                     fntempl=fntempl,
-                                     subpath_templ=subpath_templ)
+    subpath_templ = ('%Y',) if os.path.isdir(
+        os.path.join(img_path, str(startdate.year))) else None
+    input_dataset = C3S_Nc_Img_Stack(
+        data_path=img_path,
+        parameters=parameters,
+        subgrid=grid,
+        flatten=True,
+        fillval={
+            'sm': np.nan,
+            'flag': 2**8
+        },
+        fntempl=fntempl,
+        subpath_templ=subpath_templ)
 
     props = {'freq': 'unknown', 'sensor_type': 'unknown', 'version': 'unknown'}
 
@@ -261,26 +284,35 @@ def img2ts(img_path, ts_path, startdate, enddate, parameters=None,
     else:
         _cellsize = 5
 
-    reshuffler = Img2Ts(input_dataset=input_dataset, outputpath=ts_path,
-                        startdate=startdate, enddate=enddate, input_grid=grid,
-                        imgbuffer=imgbuffer, cellsize_lat=_cellsize,
-                        cellsize_lon=_cellsize, global_attr=global_attributes,
-                        zlib=True, unlim_chunksize=1000,
-                        ts_attributes=ts_attributes, n_proc=n_proc,
-                        backend='multiprocessing')
+    reshuffler = Img2Ts(
+        input_dataset=input_dataset,
+        outputpath=ts_path,
+        startdate=startdate,
+        enddate=enddate,
+        input_grid=grid,
+        imgbuffer=imgbuffer,
+        cellsize_lat=_cellsize,
+        cellsize_lon=_cellsize,
+        global_attr=global_attributes,
+        zlib=True,
+        unlim_chunksize=1000,
+        ts_attributes=ts_attributes,
+        n_proc=n_proc,
+        backend='multiprocessing')
 
     reshuffler.calc()
 
-    kwargs = {'parameters': list(parameters), 'land_points': land_points,
-              'enddate': enddate,
-              'img_path': img_path,
-              'cells': None if cells is None else list(cells),
-              'bbox': None if bbox is None else list(bbox),
-              "fntempl": fntempl,
-              'ignore_meta': ignore_meta}
+    kwargs = {
+        'parameters': list(parameters),
+        'land_points': land_points,
+        'enddate': enddate,
+        'img_path': img_path,
+        'cells': None if cells is None else list(cells),
+        'bbox': None if bbox is None else list(bbox),
+        "fntempl": fntempl,
+        'ignore_meta': ignore_meta
+    }
 
     props["img2ts_kwargs"] = kwargs
 
-    update_ts_summary_file(ts_path, collect_cov=False,
-                           props=props)
-
+    update_ts_summary_file(ts_path, collect_cov=False, props=props)
