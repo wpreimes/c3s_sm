@@ -13,7 +13,7 @@ import cdsapi
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 from cadati.dekad import day2dekad
-from repurpose.process import parallel_process_async
+from repurpose.process import parallel_process
 import traceback
 
 from c3s_sm.const import variable_lut, freq_lut, check_api_read
@@ -285,12 +285,12 @@ def download_and_extract(target_path,
 
             curr_year += 1
 
-    results = parallel_process_async(download_c3ssm, STATIC_KWARGS=STATIC_KWARGS,
-                                     ITER_KWARGS=ITER_KWARGS, n_proc=1,
-                                     log_path=os.path.join(target_path, '000_log'),
-                                     loglevel='INFO', backend='threading',
-                                     logger_name='dl_logger',
-                                     show_progress_bars=True)
+    results = parallel_process(download_c3ssm, STATIC_KWARGS=STATIC_KWARGS,
+                               ITER_KWARGS=ITER_KWARGS, n_proc=1,
+                               log_path=os.path.join(target_path, '000_log'),
+                               loglevel='INFO', backend='threading',
+                               logger_name='dl_logger',
+                               show_progress_bars=True)
 
     try:
         update_image_summary_file(target_path)

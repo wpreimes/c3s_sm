@@ -6,7 +6,7 @@ import yaml
 from parse import parse
 from c3s_sm.const import fntempl as _default_template
 import xarray as xr
-from repurpose.process import parallel_process_async
+from repurpose.process import parallel_process
 
 def collect_ts_cov(data_path: str, n_proc=1, progressbar=False):
     """
@@ -41,9 +41,9 @@ def collect_ts_cov(data_path: str, n_proc=1, progressbar=False):
 
         return start, end, cell, parameters
 
-    se = parallel_process_async(_func, ITER_KWARGS=dict(f=fl),
-                                show_progress_bars=progressbar,
-                                backend='threading', n_proc=n_proc)
+    se = parallel_process(_func, ITER_KWARGS=dict(f=fl),
+                          show_progress_bars=progressbar,
+                          backend='threading', n_proc=n_proc)
 
     periods = {}
     parameters = None
