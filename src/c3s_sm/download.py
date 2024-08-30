@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 """
 Module to download c3s soil moisture data from the CDS
 """
@@ -24,9 +23,11 @@ def logger(fname, level=logging.DEBUG, verbose=False):
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
-    logging.basicConfig(filename=fname, level=level,
-                        format='%(levelname)s %(asctime)s %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(
+        filename=fname,
+        level=level,
+        format='%(levelname)s %(asctime)s %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S')
     logger = logging.getLogger()
     if verbose:
         logger.addHandler(logging.StreamHandler(sys.stdout))
@@ -37,9 +38,18 @@ def logger(fname, level=logging.DEBUG, verbose=False):
     return logger
 
 
-def download_c3ssm(c, sensor, years, months, days, version, target_dir,
-                   temp_filename, freq='daily', keep_original=False,
-                   max_retries=5, dry_run=False):
+def download_c3ssm(c,
+                   sensor,
+                   years,
+                   months,
+                   days,
+                   version,
+                   target_dir,
+                   temp_filename,
+                   freq='daily',
+                   keep_original=False,
+                   max_retries=5,
+                   dry_run=False):
     """
     Download c3s sm data for single levels of a defined time span
     Parameters. We will always try to download the CDR and ICDR!
@@ -84,9 +94,10 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir,
 
     if not dry_run:
         if not check_api_read():
-            raise ValueError("Cannot establish connection to CDS. Please set up"
-                             "your CDS API key as described at "
-                             "https://cds.climate.copernicus.eu/api-how-to")
+            raise ValueError(
+                "Cannot establish connection to CDS. Please set up"
+                "your CDS API key as described at "
+                "https://cds.climate.copernicus.eu/api-how-to")
 
         os.makedirs(target_dir, exist_ok=True)
 
@@ -112,8 +123,7 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir,
                     'version': version,
                     'type_of_record': record
                 },
-                target=dl_file
-            )
+                target=dl_file)
 
             queries[record] = query
 
@@ -143,8 +153,9 @@ def download_c3ssm(c, sensor, years, months, days, version, target_dir,
 
     return success, queries
 
+
 def download_and_extract(target_path,
-                         startdate=datetime(1978,1,1),
+                         startdate=datetime(1978, 1, 1),
                          enddate=datetime.now(),
                          product='combined',
                          freq='daily',
@@ -194,25 +205,35 @@ def download_and_extract(target_path,
 
     os.makedirs(os.path.join(target_path, '000_log'), exist_ok=True)
 
-    dl_logger = logger(os.path.join(target_path, '000_log',
-        f"download_{'{:%Y%m%d%H%M%S.%f}'.format(datetime.now())}.log"))
+    dl_logger = logger(
+        os.path.join(
+            target_path, '000_log',
+            f"download_{'{:%Y%m%d%H%M%S.%f}'.format(datetime.now())}.log"))
 
     if dry_run:
         c = None
     else:
-        c = cdsapi.Client(quiet=True,
-                          url=os.environ.get('CDSAPI_URL'),
-                          key=os.environ.get('CDSAPI_KEY'),
-                          error_callback=dl_logger)
+        c = cdsapi.Client(
+            quiet=True,
+            url=os.environ.get('CDSAPI_URL'),
+            key=os.environ.get('CDSAPI_KEY'),
+            error_callback=dl_logger)
 
     STATIC_KWARGS = {
-        'c': c, 'keep_original': keep_original,
-        'dry_run': dry_run, 'sensor': product,
-        'version': version, 'freq': freq, 'max_retries': 3
+        'c': c,
+        'keep_original': keep_original,
+        'dry_run': dry_run,
+        'sensor': product,
+        'version': version,
+        'freq': freq,
+        'max_retries': 3
     }
 
     ITER_KWARGS = {
-        'years': [], 'months': [], 'days': [], 'target_dir': [],
+        'years': [],
+        'months': [],
+        'days': [],
+        'target_dir': [],
         'temp_filename': []
     }
 
@@ -221,7 +242,8 @@ def download_and_extract(target_path,
         # download monthly zip archives
         while curr_start <= enddate:
             sy, sm, sd = curr_start.year, curr_start.month, curr_start.day
-            sm_days = calendar.monthrange(sy, sm)[1]  # days in the current month
+            sm_days = calendar.monthrange(sy,
+                                          sm)[1]  # days in the current month
             y, m = sy, sm
 
             if (enddate.year == y) and (enddate.month == m):
@@ -238,7 +260,7 @@ def download_and_extract(target_path,
 
             ITER_KWARGS['years'].append([y])
             ITER_KWARGS['months'].append([m])
-            ITER_KWARGS['days'].append(list(range(sd, d+1)))
+            ITER_KWARGS['days'].append(list(range(sd, d + 1)))
             ITER_KWARGS['target_dir'].append(target_dir_year)
             ITER_KWARGS['temp_filename'].append(fname)
 
@@ -260,12 +282,15 @@ def download_and_extract(target_path,
             elif curr_year == enddate.year and curr_year != startdate.year:
                 ms = [m for m in range(1, 13) if m <= enddate.month]
             elif curr_year == startdate.year and curr_year == enddate.year:
-                ms = [m for m in range(1, 13) if ((m >= startdate.month) and
-                                                  (m <= enddate.month))]
+                ms = [
+                    m for m in range(1, 13)
+                    if ((m >= startdate.month) and (m <= enddate.month))
+                ]
             else:
                 ms = list(range(1, 13))
 
-            curr_start = datetime(curr_year, ms[0],
+            curr_start = datetime(
+                curr_year, ms[0],
                 startdate.day if curr_year == startdate.year else ds[0])
 
             while curr_start.day not in ds:
@@ -285,12 +310,16 @@ def download_and_extract(target_path,
 
             curr_year += 1
 
-    results = parallel_process(download_c3ssm, STATIC_KWARGS=STATIC_KWARGS,
-                               ITER_KWARGS=ITER_KWARGS, n_proc=1,
-                               log_path=os.path.join(target_path, '000_log'),
-                               loglevel='INFO', backend='threading',
-                               logger_name='dl_logger',
-                               show_progress_bars=True)
+    results = parallel_process(
+        download_c3ssm,
+        STATIC_KWARGS=STATIC_KWARGS,
+        ITER_KWARGS=ITER_KWARGS,
+        n_proc=1,
+        log_path=os.path.join(target_path, '000_log'),
+        loglevel='INFO',
+        backend='threading',
+        logger_name='dl_logger',
+        show_progress_bars=True)
 
     try:
         update_image_summary_file(target_path)
@@ -309,8 +338,8 @@ def download_and_extract(target_path,
 
     return queries
 
-def first_missing_date(last_date: str,
-                       freq: str = 'daily') -> datetime:
+
+def first_missing_date(last_date: str, freq: str = 'daily') -> datetime:
     """
     For a product, based on the last available date, find the next
     expected one.

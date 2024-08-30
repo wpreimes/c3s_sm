@@ -27,10 +27,12 @@ from c3s_sm.const import fntempl
 
 _default_fillvalues = {'sm': np.nan, 'sm_uncertainty': np.nan, 't0': np.nan}
 
+
 class C3SImg(ImageBase):
     """
     Class to read a single C3S image (for one time stamp)
     """
+
     def __init__(self,
                  filename,
                  parameters=None,
@@ -95,11 +97,14 @@ class C3SImg(ImageBase):
         Reads a single C3S image, flat with gpi0 as first element
         """
         with Dataset(self.filename, mode='r') as ds:
-            timestamp = num2date(ds['time'], ds['time'].units,
-                                 only_use_cftime_datetimes=True,
-                                 only_use_python_datetimes=False)
+            timestamp = num2date(
+                ds['time'],
+                ds['time'].units,
+                only_use_cftime_datetimes=True,
+                only_use_python_datetimes=False)
 
-            assert len(timestamp) == 1, "Found more than 1 time stamps in image"
+            assert len(
+                timestamp) == 1, "Found more than 1 time stamps in image"
             timestamp = timestamp[0]
 
             param_img = {}
@@ -107,8 +112,10 @@ class C3SImg(ImageBase):
 
             if len(self.parameters) == 0:
                 # all data vars, exclude coord vars
-                self.parameters = [k for k in ds.variables.keys()
-                                   if k not in ds.dimensions.keys()]
+                self.parameters = [
+                    k for k in ds.variables.keys()
+                    if k not in ds.dimensions.keys()
+                ]
 
             parameters = list(self.parameters)
 
@@ -130,8 +137,7 @@ class C3SImg(ImageBase):
                         self.fillval[parameter] = data.fill_value
 
                     common_dtype = np.result_type(
-                        *([data.dtype] + [type(self.fillval[parameter])])
-                    )
+                        *([data.dtype] + [type(self.fillval[parameter])]))
                     self.fillval[parameter] = np.array(
                         [self.fillval[parameter]], dtype=common_dtype)[0]
 
@@ -215,11 +221,8 @@ class C3SImg(ImageBase):
         data = self._mask_and_reshape(data)
 
         if self.flatten:
-            return Image(self.subgrid.activearrlon,
-                         self.subgrid.activearrlat,
-                         data,
-                         var_meta,
-                         timestamp)
+            return Image(self.subgrid.activearrlon, self.subgrid.activearrlat,
+                         data, var_meta, timestamp)
         else:
             # also cut 2d case to active area
             min_lat, min_lon = self.subgrid.activearrlat.min(), \
@@ -231,16 +234,16 @@ class C3SImg(ImageBase):
                 self.grid.find_nearest_gpi(min_lon, min_lat)[0],  # llc
                 self.grid.find_nearest_gpi(max_lon, min_lat)[0],  # lrc
                 self.grid.find_nearest_gpi(max_lon, max_lat)[0],  # urc
-                ])
+            ])
 
             rows = slice(corners[0][0], corners[0][2] + 1)
             cols = slice(corners[1][0], corners[1][1] + 1)
 
-            return Image(self.grid.arrlon.reshape(*self.shape)[rows, cols],
-                         np.flipud(self.grid.arrlat.reshape(*self.shape)[rows, cols]),
-                         {k: np.flipud(v[rows, cols]) for k, v in data.items()},
-                         var_meta,
-                         timestamp)
+            return Image(
+                self.grid.arrlon.reshape(*self.shape)[rows, cols],
+                np.flipud(self.grid.arrlat.reshape(*self.shape)[rows, cols]), {
+                    k: np.flipud(v[rows, cols]) for k, v in data.items()
+                }, var_meta, timestamp)
 
     def write(self, *args, **kwargs):
         pass
@@ -298,10 +301,12 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
         """
 
         self.data_path = data_path
-        ioclass_kwargs = {'parameters': parameters,
-                          'subgrid': subgrid,
-                          'flatten': flatten,
-                          'fillval': fillval}
+        ioclass_kwargs = {
+            'parameters': parameters,
+            'subgrid': subgrid,
+            'flatten': flatten,
+            'fillval': fillval
+        }
 
         self.fname_args = self._parse_filename(fntempl)
         self.solve_ambiguity = solve_ambiguity
@@ -311,15 +316,18 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
         fn_args['record'] = '*'
         filename_templ = fntempl.format(**fn_args)
 
-        super(C3S_Nc_Img_Stack, self).__init__(path=data_path,
-                                               ioclass=C3SImg,
-                                               fname_templ=filename_templ ,
-                                               datetime_format="%Y%m%d%H%M%S",
-                                               subpath_templ=subpath_templ,
-                                               exact_templ=False,
-                                               ioclass_kws=ioclass_kwargs)
+        super(C3S_Nc_Img_Stack, self).__init__(
+            path=data_path,
+            ioclass=C3SImg,
+            fname_templ=filename_templ,
+            datetime_format="%Y%m%d%H%M%S",
+            subpath_templ=subpath_templ,
+            exact_templ=False,
+            ioclass_kws=ioclass_kwargs)
 
-    def _build_filename(self, timestamp: datetime, custom_templ: str = None,
+    def _build_filename(self,
+                        timestamp: datetime,
+                        custom_templ: str = None,
                         str_param: dict = None):
         """
         This function uses _search_files to find the correct
@@ -339,23 +347,24 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
             the fname_templ.format(**str_param) notation before the resulting
             string is put into datetime.strftime.
         """
-        filename = self._search_files(timestamp, custom_templ=custom_templ,
-                                      str_param=str_param)
+        filename = self._search_files(
+            timestamp, custom_templ=custom_templ, str_param=str_param)
         if len(filename) == 0:
             raise IOError("No file found for {:}".format(timestamp.ctime()))
         if len(filename) > 1:
             filename = sorted(filename)
             if self.solve_ambiguity == 'sort_last':
-                warnings.warn(f'Ambiguous file for {str(timestamp)} found.'
-                              f' Sort and use last: {filename[-1]}, skipped {filename[:-1]}')
+                warnings.warn(
+                    f'Ambiguous file for {str(timestamp)} found.'
+                    f' Sort and use last: {filename[-1]}, skipped {filename[:-1]}'
+                )
                 filename = [filename[-1]]
             elif self.solve_ambiguity == 'sort_first':
                 warnings.warn(f'Ambiguous file for {str(timestamp)} found.'
                               f' Sort and use first: {filename[0]}')
                 filename = [filename[0]]
             else:
-                raise IOError(
-                    "File search is ambiguous {:}".format(filename))
+                raise IOError("File search is ambiguous {:}".format(filename))
 
         return filename[0]
 
@@ -410,9 +419,11 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
             self.fname_args['freq'] = 'DAILY'
 
         if self.fname_args['freq'] == 'MONTHLY':
-            timestamps = pd.date_range(start_date, end_date, freq='MS').to_pydatetime()
+            timestamps = pd.date_range(
+                start_date, end_date, freq='MS').to_pydatetime()
         elif self.fname_args['freq'] == 'DAILY':
-            timestamps = pd.date_range(start_date, end_date, freq='D').to_pydatetime()
+            timestamps = pd.date_range(
+                start_date, end_date, freq='D').to_pydatetime()
         elif self.fname_args['freq'] == 'DEKADAL':
             timestamps = dekad_index(start_date, end_date).to_pydatetime()
             timestamps = [dekad_startdate_from_date(d) for d in timestamps]
@@ -442,13 +453,18 @@ class C3S_Nc_Img_Stack(MultiTemporalImageBase):
             warnings.warn(f'Could not load image for {timestamp}.')
             raise IOError
 
+
 class C3STs(GriddedNcOrthoMultiTs):
     """
     Module for reading C3S time series in netcdf format.
     """
-    def __init__(self, ts_path, grid_path=None, remove_nans=False, drop_tz=True,
-                 **kwargs):
 
+    def __init__(self,
+                 ts_path,
+                 grid_path=None,
+                 remove_nans=False,
+                 drop_tz=True,
+                 **kwargs):
         """
         Class for reading C3S SM time series after reshuffling.
 
